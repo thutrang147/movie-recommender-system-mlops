@@ -2,6 +2,55 @@
 
 This project uses the MovieLens dataset and is managed with uv.
 
+## Quick Start
+
+```bash
+uv sync --dev
+uv run python src/data/load_data.py
+uv run python src/data/validate_data.py --save-report
+uv run python src/data/ingest.py
+uv run pytest
+```
+
+For DVC-managed artifacts:
+
+```bash
+uv run python -m dvc pull
+```
+
+## Data Flow (Raw -> Interim -> Processed)
+
+```text
+data/raw/*.dat
+    |
+    |  src/data/load_data.py
+    v
+data/interim/*_cleaned.csv
+    |
+    |  src/data/validate_data.py
+    |  (quality checks + optional report)
+    v
+docs/data_quality_report.md
+
+data/interim/*_cleaned.csv OR data/raw/*.dat (--from-raw)
+    |
+    |  src/data/ingest.py
+    v
+data/processed/*.parquet
+    |
+    |  python -m dvc add/push/pull
+    v
+DVC remote artifacts
+```
+
+## Data Scripts Overview
+
+| Script | Main purpose | Default input | Default output |
+|---|---|---|---|
+| `src/data/load_data.py` | Load raw MovieLens data and apply schema normalization | `data/raw/{ratings,movies,users}.dat` | `data/interim/{ratings,movies,users}_cleaned.csv` |
+| `src/data/validate_data.py` | Validate quality (missing, duplicates, IDs, rating, timestamp) | `data/interim/*_cleaned.csv` (or raw with `--force-raw`) | Terminal summary, optional `docs/data_quality_report.md` |
+| `src/data/ingest.py` | Build processed parquet artifacts for training/DVC | `data/interim/*_cleaned.csv` (or raw with `--from-raw`) | `data/processed/{ratings,movies,users}.parquet` |
+
 ## 1. Requirements
 
 - macOS or Windows
@@ -19,7 +68,7 @@ Option A (Homebrew):
 brew install uv
 ```
 
-Option B (official installer):
+Option B (Official Installer):
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -40,7 +89,7 @@ cd movie-recommender-system-mlops
 
 ## 4. Create Environment And Install Dependencies
 
-Run this in the project root:
+Run the following command from the project root:
 
 ```bash
 uv sync --dev
@@ -76,17 +125,17 @@ Then run activation again.
 
 ## 6. Data Prerequisite
 
-By default, data loading expects these files in data/raw:
+By default, the data-loading workflow expects the following files in data/raw:
 
 - ratings.dat
 - movies.dat
 - users.dat
 
-If they are missing, loading will fail with FileNotFoundError.
+If any file is missing, execution fails with FileNotFoundError.
 
-## 7. Run The Project Steps (UV First)
+## 7. Run Project Workflow (UV)
 
-### 7.1 Load and clean data
+### 7.1 Load and Clean Data
 
 ```bash
 uv run python src/data/load_data.py
@@ -94,7 +143,7 @@ uv run python src/data/load_data.py
 
 This writes cleaned CSV files into data/interim by default.
 
-### 7.2 Validate data quality and save report
+### 7.2 Validate Data Quality and Save Report
 
 ```bash
 uv run python src/data/validate_data.py --save-report
@@ -102,7 +151,7 @@ uv run python src/data/validate_data.py --save-report
 
 This saves a report to docs/data_quality_report.md.
 
-### 7.3 Build processed parquet artifacts
+### 7.3 Build Processed Parquet Artifacts
 
 ```bash
 uv run python src/data/ingest.py
@@ -116,7 +165,7 @@ Use `--from-raw` to build directly from `data/raw/*.dat`:
 uv run python src/data/ingest.py --from-raw
 ```
 
-### 7.4 Run tests
+### 7.4 Run Tests
 
 ```bash
 uv run pytest
@@ -138,7 +187,13 @@ uv run python -m dvc add data/processed/users.parquet data/processed/movies.parq
 uv run python -m dvc push
 ```
 
-The configured default remote is in `.dvc/config`.
+The configured default remote is defined in `.dvc/config`.
+
+You can inspect active DVC settings with:
+
+```bash
+uv run python -m dvc config --list
+```
 
 ## 9. Optional: Run Notebook
 
@@ -146,23 +201,23 @@ The configured default remote is in `.dvc/config`.
 uv run jupyter lab
 ```
 
-Then open notebooks/01_eda.ipynb.
+Open notebooks/01_eda.ipynb after Jupyter Lab starts.
 
-## 10. Useful Custom Paths
+## 10. Custom Path Options
 
-Load data with custom folders:
+Load data with custom directories:
 
 ```bash
 uv run python src/data/load_data.py --raw-dir <raw_data_dir> --output-dir <interim_output_dir>
 ```
 
-Validate with custom folders/report path:
+Validate data with custom directories and report path:
 
 ```bash
 uv run python src/data/validate_data.py --raw-dir <raw_data_dir> --interim-dir <interim_dir> --report-path <report_file.md> --save-report
 ```
 
-Build parquet with custom paths:
+Build parquet artifacts with custom directories:
 
 ```bash
 uv run python src/data/ingest.py --interim-dir <interim_dir> --output-dir <processed_dir>
@@ -193,11 +248,11 @@ Add a development dependency:
 uv add --dev <package>
 ```
 
-After dependency changes, commit both pyproject.toml and uv.lock.
+After dependency updates, commit both pyproject.toml and uv.lock.
 
 ## 13. Troubleshooting
 
-- Wrong Python version:
+- Python version mismatch:
 
 ```bash
 uv python install 3.10
@@ -215,3 +270,18 @@ uv run python --version
 ```bash
 uv run python -m dvc version
 ```
+
+- DVC import/config errors after dependency changes:
+
+```bash
+uv sync --dev
+uv run python -m dvc version
+```
+
+- Raw data files missing:
+
+```bash
+ls data/raw
+```
+
+The directory must contain `ratings.dat`, `movies.dat`, and `users.dat`.

@@ -3,59 +3,29 @@
 from __future__ import annotations
 
 import argparse
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Tuple
 
 import pandas as pd  # type: ignore[import-not-found]
 
-RATINGS_COLUMNS = ["UserID", "MovieID", "Rating", "Timestamp"]
-MOVIES_COLUMNS = ["MovieID", "Title", "Genres"]
-USERS_COLUMNS = ["UserID", "Gender", "Age", "Occupation", "Zip-code"]
-
-# Map common legacy or compact names to canonical snake_case names.
-COLUMN_ALIASES = {
-    "userid": "user_id",
-    "movieid": "movie_id",
-    "zipcode": "zip_code",
-}
-
-
-def standardize_column_name(column_name: str) -> str:
-    """Convert a column name to lowercase snake_case."""
-    cleaned_name = column_name.strip().lower()
-    cleaned_name = re.sub(r"[^a-z0-9]+", "_", cleaned_name)
-    return re.sub(r"_+", "_", cleaned_name).strip("_")
-
-
-def standardize_dataframe_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Apply standardized naming to all DataFrame columns."""
-    standardized_df = df.copy()
-    standardized_df.columns = [standardize_column_name(col) for col in standardized_df.columns]
-    return standardized_df
-
-
-def canonicalize_dataframe_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Normalize standardized columns into canonical project names."""
-    standardized_df = standardize_dataframe_columns(df)
-    canonical_df = standardized_df.rename(columns={col: COLUMN_ALIASES.get(col, col) for col in standardized_df.columns})
-
-    # Keep the first column when multiple aliases collapse to the same canonical name.
-    if canonical_df.columns.duplicated().any():
-        canonical_df = canonical_df.loc[:, ~canonical_df.columns.duplicated()]
-
-    return canonical_df
-
-
-def load_table(file_path: Path, columns: list[str]) -> pd.DataFrame:
-    """Load a MovieLens DAT file that uses double-colon separators."""
-    return pd.read_csv(
-        file_path,
-        sep="::",
-        engine="python",
-        names=columns,
-        encoding="latin-1",
+try:
+    from src.data.common import (
+        MOVIES_COLUMNS,
+        RATINGS_COLUMNS,
+        USERS_COLUMNS,
+        canonicalize_dataframe_columns,
+        load_table,
+        validate_input_files,
+    )
+except ModuleNotFoundError:
+    from common import (  # type: ignore[no-redef]
+        MOVIES_COLUMNS,
+        RATINGS_COLUMNS,
+        USERS_COLUMNS,
+        canonicalize_dataframe_columns,
+        load_table,
+        validate_input_files,
     )
 
 
@@ -89,16 +59,7 @@ def load_datasets(raw_dir: Path, interim_dir: Path, force_raw: bool) -> tuple[Di
         }
         source_label = "cleaned CSV files from data/interim"
     else:
-        raw_paths = {
-            "ratings": raw_dir / "ratings.dat",
-            "movies": raw_dir / "movies.dat",
-            "users": raw_dir / "users.dat",
-        }
-
-        missing_raw_files = [str(path) for path in raw_paths.values() if not path.exists()]
-        if missing_raw_files:
-            missing_text = "\n".join(missing_raw_files)
-            raise FileNotFoundError(f"Missing required raw data files:\n{missing_text}")
+        raw_paths = validate_input_files(raw_dir)
 
         tables = {
             "ratings": load_table(raw_paths["ratings"], RATINGS_COLUMNS),

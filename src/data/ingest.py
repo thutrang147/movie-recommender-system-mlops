@@ -9,7 +9,7 @@ from typing import Dict
 import pandas as pd  # type: ignore[import-not-found]
 
 try:
-    from src.data.load_data import (
+    from src.data.common import (
         MOVIES_COLUMNS,
         RATINGS_COLUMNS,
         USERS_COLUMNS,
@@ -18,7 +18,7 @@ try:
         validate_input_files,
     )
 except ModuleNotFoundError:
-    from load_data import (  # type: ignore[no-redef]
+    from common import (  # type: ignore[no-redef]
         MOVIES_COLUMNS,
         RATINGS_COLUMNS,
         USERS_COLUMNS,
