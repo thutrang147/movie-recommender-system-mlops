@@ -1,0 +1,13 @@
+stages:
+  ingest_processed:
+    cmd: uv run python src/data/ingest.py
+    deps:
+      - src/data/ingest.py
+      - src/data/load_data.py
+      - data/interim/ratings_cleaned.csv
+      - data/interim/movies_cleaned.csv
+      - data/interim/users_cleaned.csv
+    outs:
+      - data/processed/ratings.parquet
+      - data/processed/movies.parquet
+      - data/processed/users.parquet

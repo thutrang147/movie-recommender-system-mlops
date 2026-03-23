@@ -1,0 +1,32 @@
+[project]
+name = "movie-recommender-system-mlops"
+version = "0.1.0"
+description = "MovieLens-based MLOps movie recommender project"
+requires-python = ">=3.10,<3.11"
+dependencies = [
+	"pandas==2.2.3",
+	"numpy==1.26.4",
+	"scipy==1.13.1",
+	"scikit-learn==1.5.2",
+	"scikit-surprise==1.1.4",
+	"dvc==3.60.1",
+	"mlflow==2.19.0",
+	"fastapi==0.115.6",
+	"uvicorn[standard]==0.34.0",
+	"pydantic==2.10.4",
+	"evidently==0.6.1",
+	"python-dotenv==1.0.1",
+	"PyYAML==6.0.2",
+	"requests==2.32.3",
+	"pathspec<0.12",
+	"tqdm==4.67.1",
+]
+
+[dependency-groups]
+dev = [
+	"matplotlib==3.9.2",
+	"seaborn==0.13.2",
+	"jupyterlab==4.2.5",
+	"pytest==8.3.4",
+	"httpx==0.28.1",
+]

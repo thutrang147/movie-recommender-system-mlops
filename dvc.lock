@@ -1,0 +1,38 @@
+schema: '2.0'
+stages:
+  ingest_processed:
+    cmd: uv run python src/data/ingest.py
+    deps:
+    - path: data/interim/movies_cleaned.csv
+      hash: md5
+      md5: 99bc668cb89ac9413fc01cbdaf384413
+      size: 165612
+    - path: data/interim/ratings_cleaned.csv
+      hash: md5
+      md5: c2d44797dbc26922bc5e1ee993a44052
+      size: 21593538
+    - path: data/interim/users_cleaned.csv
+      hash: md5
+      md5: d3d906edb43d8dd8aac7e1e4decfa8f7
+      size: 110247
+    - path: src/data/ingest.py
+      hash: md5
+      md5: 12237370615436fb9ef94a99155b005d
+      size: 4657
+    - path: src/data/load_data.py
+      hash: md5
+      md5: 86a27b5a4990660cda6a9689b1b167fa
+      size: 3416
+    outs:
+    - path: data/processed/movies.parquet
+      hash: md5
+      md5: 8359289808216e27d1a25a2758bb1c46
+      size: 105053
+    - path: data/processed/ratings.parquet
+      hash: md5
+      md5: aa300c93b3259547e5d8115007f1902a
+      size: 5356790
+    - path: data/processed/users.parquet
+      hash: md5
+      md5: 1489d8cc2fcc240058e88f255c8c97f7
+      size: 71980
