@@ -22,34 +22,17 @@ uv run python -m dvc pull
 
 ```text
 data/raw/*.dat
-    |
-    |  src/data/load_data.py
-    v
-data/interim/*_cleaned.csv
-    |
-    |  src/data/validate_data.py
-    |  (quality checks + optional report)
-    v
-docs/data_quality_report.md
-
-data/interim/*_cleaned.csv OR data/raw/*.dat (--from-raw)
-    |
-    |  src/data/ingest.py
-    v
-data/processed/*.parquet
-    |
-    |  python -m dvc add/push/pull
-    v
-DVC remote artifacts
+  -> load_data.py -> data/interim/*_cleaned.csv
+  -> validate_data.py -> docs/data_quality_report.md (optional)
+  -> ingest.py -> data/processed/*.parquet
+  -> dvc add/push/pull -> DVC remote
 ```
 
 ## Data Scripts Overview
 
-| Script | Main purpose | Default input | Default output |
-|---|---|---|---|
-| `src/data/load_data.py` | Load raw MovieLens data and apply schema normalization | `data/raw/{ratings,movies,users}.dat` | `data/interim/{ratings,movies,users}_cleaned.csv` |
-| `src/data/validate_data.py` | Validate quality (missing, duplicates, IDs, rating, timestamp) | `data/interim/*_cleaned.csv` (or raw with `--force-raw`) | Terminal summary, optional `docs/data_quality_report.md` |
-| `src/data/ingest.py` | Build processed parquet artifacts for training/DVC | `data/interim/*_cleaned.csv` (or raw with `--from-raw`) | `data/processed/{ratings,movies,users}.parquet` |
+- `src/data/load_data.py`: raw DAT -> cleaned CSV in `data/interim`.
+- `src/data/validate_data.py`: quality checks + optional markdown report.
+- `src/data/ingest.py`: cleaned CSV (or `--from-raw`) -> parquet in `data/processed`.
 
 ## 1. Requirements
 
@@ -195,6 +178,30 @@ You can inspect active DVC settings with:
 uv run python -m dvc config --list
 ```
 
+### Cloud DVC Setup (Team)
+
+Use this only when pulling/pushing data from the shared Google Drive remote.
+
+1. Request access to the shared drive from the project maintainer.
+2. Configure local OAuth values (do not commit these values):
+
+```bash
+dvc remote modify --local gdrive_remote gdrive_client_id "<client_id>"
+dvc remote modify --local gdrive_remote gdrive_client_secret "<client_secret>"
+```
+
+3. Authenticate and pull:
+
+```bash
+dvc pull
+```
+
+If local data is enough for your task, you can skip cloud pull and run:
+
+```bash
+uv run python src/data/ingest.py
+```
+
 ## 9. Optional: Run Notebook
 
 ```bash
@@ -277,11 +284,3 @@ uv run python -m dvc version
 uv sync --dev
 uv run python -m dvc version
 ```
-
-- Raw data files missing:
-
-```bash
-ls data/raw
-```
-
-The directory must contain `ratings.dat`, `movies.dat`, and `users.dat`.
