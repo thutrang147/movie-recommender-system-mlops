@@ -1,5 +1,0 @@
-outs:
-- md5: b411c773a55161046e967faac434cd4a
-  size: 71915
-  hash: md5
-  path: users.parquet
