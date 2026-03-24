@@ -4,19 +4,28 @@ This project uses the MovieLens dataset and is managed with uv.
 
 ## Quick Start
 
+Choose one workflow below.
+
+### Option A - Use shared processed artifacts (DVC)
+
 ```bash
-uv sync --dev
+uv sync
+uv run dvc pull
+uv run pytest
+```
+
+### Option B - Build processed artifacts locally from raw data
+
+```bash
+uv sync
 uv run python src/data/load_data.py
 uv run python src/data/validate_data.py --save-report
 uv run python src/data/ingest.py
 uv run pytest
 ```
 
-For DVC-managed artifacts:
-
-```bash
-uv run python -m dvc pull
-```
+Use Option A when you only need team-shared processed artifacts.
+Use Option B when you have raw data locally and want to rebuild artifacts.
 
 ## Data Flow (Raw -> Interim -> Processed)
 
@@ -75,10 +84,12 @@ cd movie-recommender-system-mlops
 Run the following command from the project root:
 
 ```bash
-uv sync --dev
+uv sync
 ```
 
 ## 5. Activate Virtual Environment
+
+This step is optional when using `uv run ...` commands.
 
 ### macOS
 
@@ -156,26 +167,36 @@ uv run pytest
 
 ## 8. DVC Workflow
 
-Pull tracked processed artifacts:
+Use DVC when you want to download or share tracked processed artifacts.
+
+Pull shared artifacts from the default remote:
 
 ```bash
-uv run python -m dvc pull
+uv run dvc pull
 ```
 
-Rebuild and re-track processed artifacts:
+After rebuilding processed artifacts locally, update tracked outputs and push them:
 
 ```bash
 uv run python src/data/ingest.py
-uv run python -m dvc add data/processed/users.parquet data/processed/movies.parquet data/processed/ratings.parquet
-uv run python -m dvc push
+uv run dvc add data/processed/users.parquet data/processed/movies.parquet data/processed/ratings.parquet
+git add .
+git commit -m "Update processed parquet artifacts"
+git push
+uv run dvc push
 ```
+
+Note:
+
+- `git push` shares code and DVC metadata.
+- `dvc push` shares the tracked artifact files to the DVC remote.
 
 The configured default remote is defined in `.dvc/config`.
 
 You can inspect active DVC settings with:
 
 ```bash
-uv run python -m dvc config --list
+uv run dvc config --list
 ```
 
 ### Cloud DVC Setup (Team)
@@ -186,14 +207,14 @@ Use this only when pulling/pushing data from the shared Google Drive remote.
 2. Configure local OAuth values (do not commit these values):
 
 ```bash
-dvc remote modify --local gdrive_remote gdrive_client_id "<client_id>"
-dvc remote modify --local gdrive_remote gdrive_client_secret "<client_secret>"
+uv run dvc remote modify --local gdrive_remote gdrive_client_id "<client_id>"
+uv run dvc remote modify --local gdrive_remote gdrive_client_secret "<client_secret>"
 ```
 
 3. Authenticate and pull:
 
 ```bash
-dvc pull
+uv run dvc pull
 ```
 
 If local data is enough for your task, you can skip cloud pull and run:
@@ -263,7 +284,7 @@ After dependency updates, commit both pyproject.toml and uv.lock.
 
 ```bash
 uv python install 3.10
-uv sync --python 3.10 --dev
+uv sync --python 3.10
 ```
 
 - Verify Python in the environment:
@@ -275,12 +296,12 @@ uv run python --version
 - DVC command not found in shell:
 
 ```bash
-uv run python -m dvc version
+uv run dvc version
 ```
 
 - DVC import/config errors after dependency changes:
 
 ```bash
-uv sync --dev
-uv run python -m dvc version
+uv sync
+uv run dvc version
 ```

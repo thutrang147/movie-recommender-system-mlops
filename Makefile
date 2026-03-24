@@ -4,7 +4,7 @@ PYTHON_UV := $(shell command -v uv 2>/dev/null)
 
 install:
 	@if [ -n "$(PYTHON_UV)" ]; then \
-		uv sync --dev; \
+		uv sync; \
 	else \
 		python -m pip install -e .; \
 	fi
@@ -41,21 +41,21 @@ data: data-csv ingest-parquet
 
 dvc-add:
 	@if [ -n "$(PYTHON_UV)" ]; then \
-		uv run python -m dvc add data/processed/users.parquet data/processed/movies.parquet data/processed/ratings.parquet; \
+		uv run dvc add data/processed/users.parquet data/processed/movies.parquet data/processed/ratings.parquet; \
 	else \
 		python -m dvc add data/processed/users.parquet data/processed/movies.parquet data/processed/ratings.parquet; \
 	fi
 
 dvc-push:
 	@if [ -n "$(PYTHON_UV)" ]; then \
-		uv run python -m dvc push; \
+		uv run dvc push; \
 	else \
 		python -m dvc push; \
 	fi
 
 dvc-pull:
 	@if [ -n "$(PYTHON_UV)" ]; then \
-		uv run python -m dvc pull; \
+		uv run dvc pull; \
 	else \
 		python -m dvc pull; \
 	fi
