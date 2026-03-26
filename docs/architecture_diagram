@@ -1,68 +1,46 @@
-[ NGƯỜI DÙNG CUỐI / CLIENT APP ]
-             ^
-             |  (Gửi UserID / Trả về Top K Phim qua JSON)
-             v
-+-------------------------------------------------+
-|               PHÂN HỆ SERVING                   |
-|  FASTAPI (Thư mục: api/main.py)                 | <-- API load model vào RAM
-+-------------------------------------------------+
-             ^
-             |  (Kéo mô hình đã được duyệt từ Model Registry)
-+-------------------------------------------------+
-|               PHÂN HỆ TRAINING & REGISTRY       |
-|  SCRIPT: src/models/train.py                    | <-- Chạy thuật toán (SVD, KNN...)
-|  TRACKING: MLflow/W&B (Ghi nhận RMSE, MAE)      | <-- Sucess metrics
-|  REGISTRY: Lưu trữ phiên bản Model (v1, v2...)  | 
-+-------------------------------------------------+
-             ^
-             |  (Đọc Clean Data bằng Pandas/Polars)
-+-------------------------------------------------+
-|               PHÂN HỆ LƯU TRỮ (VERSIONING)      |
-|  DVC & GOOGLE DRIVE                             | <-- Quản lý phiên bản dữ liệu lớn
-|  (Quản lý các file .parquet / embeddings)       | 
-+-------------------------------------------------+
-             ^
-             |  (dvc push các file đã sạch và đạt chuẩn)
-+-------------------------------------------------+
-|           PHÂN HỆ PROCESSING & VALIDATION       |
-|  ENRICHMENT: Gọi TMDB API lấy Poster/Overview   | <-- Data Sourcing
-|  VALIDATION: Pydantic Contract (Chặn data rác)  | <-- Quality Checks
-|  CONVERT: Ép kiểu sang định dạng Parquet        |
-+-------------------------------------------------+
-             ^
-             |  (Load data thô vào bộ nhớ tạm)
-+-------------------------------------------------+
-|               PHÂN HỆ DATA SOURCE               |
-|  LOCAL: ratings.dat, users.dat, movies.dat      | <-- Dữ liệu gốc từ Kaggle/GroupLens
-+-------------------------------------------------+
-
-
-
-[ NGƯỜI DÙNG CUỐI / CLIENT APP ]
-             ^
-             |  (Gửi UserID / Trả về Top K Phim qua JSON)
-             v
-+-------------------------------------------------+
-|               PHÂN HỆ SERVING                   |
-|  FASTAPI (Thư mục: api/main.py)                 | <-- API load model vào RAM
-+-------------------------------------------------+
-             ^
-             |  (Load Model Weights: model_svd.pkl)
-+-------------------------------------------------+
-|               PHÂN HỆ TRAINING                  |
-|  SCRIPT (Thư mục: src/models/train.py)          | <-- Chạy thuật toán (SVD, KNN...)
-|  TRACKING (MLflow / Weights & Biases)           | <-- Ghi nhận RMSE, MAE
-+-------------------------------------------------+
-             ^
-             |  (Đọc Data bằng Pandas/Polars)
-+-------------------------------------------------+
-|               PHÂN HỆ LƯU TRỮ CHÍNH             |
-|  DVC & GOOGLE DRIVE                             | <-- Quản lý phiên bản dữ liệu lớn
-|  (Lưu các file .parquet / .dat khổng lồ)        | 
-+-------------------------------------------------+
-             ^
-             |  (dvc add / dvc push)
-+-------------------------------------------------+
-|               PHÂN HỆ DATA SOURCE               |
-|  RATINGS THÔ (Thư mục: data/raw/ratings.dat)    | <-- Dữ liệu gốc từ Kaggle/GroupLens
-+-------------------------------------------------+
+[ END USER / CLIENT APP ] -------------------------------------------------------------------+
+             ^                                                                               |
+             | (Send UserID / Receive Top K)                                                 |  (New user ratings 
+             v                                                                               |   & timestamps)
++-------------------------------------------------+                                          |
+|               CACHING LAYER (PERFORMANCE)       |                                          |
+|  REDIS CACHE                                    |                                          |
++-------------------------------------------------+                                          |
+             ^                                                                               |
+             | (Cache Miss / Cache Hit)                                                      |
+             v                                                                               |
++-------------------------------------------------+      +-------------------------------+   | 
+|               SERVING SUBSYSTEM                 | ---> | OBSERVABILITY & MONITORING    |   | 
+|  [NEW] DOCKER CONTAINER                         |      | PROMETHEUS / GRAFANA          |   | 
+|  FASTAPI (Dir: api/main.py)                     |      | Track API latency, Data Drift,|   | 
+|  FALLBACK STRATEGY: Static "Top Trending"       |      | and prediction distribution   |   | 
++-------------------------------------------------+      +-------------------------------+   | 
+             ^                                                                               |
+             | (Fetch approved model weights)                                                |
++-------------------------------------------------+      +-------------------------------+   |
+|           TRAINING & REGISTRY SUBSYSTEM         | <--- | ORCHESTRATION                 |   |
+|  SCRIPT: src/models/train.py                    |      | (Apache Airflow/Cron)         |   |
+|  TRACKING: MLflow/W&B (Success Metrics: RMSE)   |      | Automated trigger for         |   |
+|  REGISTRY: Model Versioning (v1, v2...)         |      | weekly retraining loop        |   |
++-------------------------------------------------+      +-------------------------------+   |
+             ^                                                                               |
+             | (Read Clean Data via Pandas/Polars)                                           |
++-------------------------------------------------+                                          |
+|           STORAGE & VERSIONING SUBSYSTEM        |                                          |
+|  DVC & GOOGLE DRIVE                             |                                          |
+|  (Stores .parquet files & image embeddings)     |                                          |
++-------------------------------------------------+                                          |
+             ^                                                                               |
+             | (dvc push clean & validated files)                                            |
++-------------------------------------------------+                                          |
+|           PROCESSING & VALIDATION SUBSYSTEM     |                                          |
+|  ENRICHMENT: Fetch Poster/Overview via TMDB API |                                          |
+|  VALIDATION: Pydantic Contract (Block bad data) |                                          |
+|  CONVERT: Downcast & Save as Parquet format     |                                          |
++-------------------------------------------------+                                          |
+             ^                                                                               v
+             | (Load raw data into temporary memory)              +---------------------------+
++-------------------------------------------------+               |     EVENT LOGGING         |
+|               DATA SOURCE SUBSYSTEM             | <------------ | Real-time collection      |
+|  LOCAL: ratings.dat, users.dat, movies.dat      |               | of new ratings            |
++-------------------------------------------------+               +---------------------------+
