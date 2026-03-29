@@ -1,0 +1,4 @@
+/ratings.parquet
+/users.parquet
+/movies.parquet
+/movies_enriched.parquet

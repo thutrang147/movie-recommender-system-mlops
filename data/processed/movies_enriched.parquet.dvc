@@ -1,0 +1,5 @@
+outs:
+- md5: 05283f4651ff246424e85e6aa83804a2
+  size: 940720
+  hash: md5
+  path: movies_enriched.parquet
