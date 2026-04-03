@@ -6,6 +6,9 @@ env/
 # Jupyter artifacts
 .ipynb_checkpoints/
 
+# Generated data artifacts (keep notebooks tracked)
+data/interim/*.csv
+
 # ML model files
 *.pkl
 *.pt
