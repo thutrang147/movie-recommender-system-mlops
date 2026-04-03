@@ -17,6 +17,8 @@ mlruns/
 
 # OS-specific
 .DS_Store
+**/__pycache__/
+*.pyc
 
 # Large archives
 *.zip
