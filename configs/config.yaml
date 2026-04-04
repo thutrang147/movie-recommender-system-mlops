@@ -1,0 +1,10 @@
+data:
+  processed_path: "data/processed/ratings.parquet"
+
+training:
+  test_size: 0.2
+  random_state: 42
+
+model:
+  k_candidates: [10, 20, 50, 100]  # Thêm các mốc để Grid Search tìm ra k hoàn hảo
+  save_path: "models/robust_svd_baseline.pkl"

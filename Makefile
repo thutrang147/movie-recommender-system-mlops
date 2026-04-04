@@ -1,13 +1,61 @@
-.PHONY: install data dvc-add dvc-push
+.PHONY: install data-csv validate report ingest-parquet data dvc-add dvc-push dvc-pull
+
+PYTHON_UV := $(shell command -v uv 2>/dev/null)
 
 install:
-	pip install -r requirements.txt
+	@if [ -n "$(PYTHON_UV)" ]; then \
+		uv sync; \
+	else \
+		python -m pip install -e .; \
+	fi
 
-data:
-	python src/data/ingest.py
+data-csv:
+	@if [ -n "$(PYTHON_UV)" ]; then \
+		uv run python src/data/load_data.py; \
+	else \
+		python src/data/load_data.py; \
+	fi
+
+validate:
+	@if [ -n "$(PYTHON_UV)" ]; then \
+		uv run python src/data/validate_data.py; \
+	else \
+		python src/data/validate_data.py; \
+	fi
+
+report:
+	@if [ -n "$(PYTHON_UV)" ]; then \
+		uv run python src/data/validate_data.py --save-report; \
+	else \
+		python src/data/validate_data.py --save-report; \
+	fi
+
+ingest-parquet:
+	@if [ -n "$(PYTHON_UV)" ]; then \
+		uv run python src/data/ingest.py; \
+	else \
+		python src/data/ingest.py; \
+	fi
+
+data: data-csv ingest-parquet
 
 dvc-add:
-	dvc add data/processed/users.parquet data/processed/movies.parquet data/processed/ratings.parquet
+	@if [ -n "$(PYTHON_UV)" ]; then \
+		uv run dvc add data/processed/users.parquet data/processed/movies.parquet data/processed/ratings.parquet; \
+	else \
+		python -m dvc add data/processed/users.parquet data/processed/movies.parquet data/processed/ratings.parquet; \
+	fi
 
 dvc-push:
-	dvc push
+	@if [ -n "$(PYTHON_UV)" ]; then \
+		uv run dvc push; \
+	else \
+		python -m dvc push; \
+	fi
+
+dvc-pull:
+	@if [ -n "$(PYTHON_UV)" ]; then \
+		uv run dvc pull; \
+	else \
+		python -m dvc pull; \
+	fi
