@@ -6,6 +6,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from src.models.metrics import evaluate_top_k_recommendations
 
 
 def set_seed(seed: int = 42) -> None:
@@ -270,77 +271,47 @@ class PyTorchBPR:
     def evaluate(self, test_df: pd.DataFrame):
         return None, None
 
-    def evaluate_ranking(
-        self,
-        train_df: pd.DataFrame,
-        test_df: pd.DataFrame,
-        top_k: int = 10,
-        relevance_threshold: float = 4.0,
-        verbose: bool = True,
-    ):
+
+    def evaluate_ranking(self, train_df, test_df, top_k=10, relevance_threshold=4.0, verbose=True):
         if self.model is None:
             raise ValueError("Model chưa được fit.")
 
-        test_user_items = defaultdict(set)
-        for row in test_df[test_df["Rating"] >= relevance_threshold].itertuples():
-            if row.UserID in self.user_map and row.MovieID in self.item_map:
-                u_idx = self.user_map[row.UserID]
-                i_idx = self.item_map[row.MovieID]
-                test_user_items[u_idx].add(i_idx)
-
-        train_user_items = defaultdict(set)
-        for row in train_df.itertuples():
-            if row.UserID in self.user_map and row.MovieID in self.item_map:
-                train_user_items[self.user_map[row.UserID]].add(self.item_map[row.MovieID])
-
-        eval_users = list(test_user_items.keys())
         if verbose:
             print(f"   [Metrics] Đang tính toán Top-{top_k} Recommendation Metrics (BPR)...")
+
+        def recommendation_fn(user_id, seen_items, top_k):
+            if user_id not in self.user_map:
+                return []
+
+            u_idx = self.user_map[user_id]
+
+            self.model.eval()
+            with torch.no_grad():
+                users_t = torch.tensor([u_idx], dtype=torch.long, device=self.device)
+                scores = self.model.get_user_scores(users_t).cpu().numpy().flatten()
+
+            seen_indices = [self.item_map[i] for i in seen_items if i in self.item_map]
+            if seen_indices:
+                scores[seen_indices] = -np.inf
+
+            top_indices = np.argpartition(scores, -top_k)[-top_k:]
+            top_indices = top_indices[np.argsort(scores[top_indices])[::-1]]
+
+            return [self.reverse_item_map[i] for i in top_indices.tolist()]
+
+        recall_k, map_k, coverage = evaluate_top_k_recommendations(
+            train_df=train_df,
+            test_df=test_df,
+            recommendation_fn=recommendation_fn,
+            catalog_size=self.num_items,
+            top_k=top_k,
+            relevance_threshold=relevance_threshold,
+        )
+
+        if verbose:
+            ground_truth = build_relevant_items_dict(test_df, relevance_threshold)
+            eval_users = [u for u in ground_truth if u in self.user_map]
             print(f"      -> Số user được evaluate: {len(eval_users):,}")
-
-        if not eval_users:
-            return 0.0, 0.0, 0.0
-
-        self.model.eval()
-        ap_scores = []
-        recall_scores = []
-        recommended_items = set()
-
-        with torch.no_grad():
-            user_batch_size = 512
-            for start in range(0, len(eval_users), user_batch_size):
-                batch_users = eval_users[start:start + user_batch_size]
-                users_t = torch.tensor(batch_users, dtype=torch.long, device=self.device)
-
-                all_scores = self.model.get_user_scores(users_t).cpu().numpy()
-
-                for row_idx, u_idx in enumerate(batch_users):
-                    true_items = test_user_items[u_idx]
-                    if not true_items:
-                        continue
-
-                    seen_items = list(train_user_items.get(u_idx, set()))
-                    if seen_items:
-                        all_scores[row_idx, seen_items] = -np.inf
-
-                    top_items = np.argpartition(all_scores[row_idx], -top_k)[-top_k:]
-                    top_items = top_items[np.argsort(all_scores[row_idx][top_items])[::-1]].tolist()
-
-                    recommended_items.update(top_items)
-
-                    hits = 0
-                    sum_precs = 0.0
-                    for rank, pred_item in enumerate(top_items, start=1):
-                        if pred_item in true_items:
-                            hits += 1
-                            sum_precs += hits / rank
-
-                    ap_scores.append(sum_precs / min(len(true_items), top_k))
-                    recall_scores.append(hits / len(true_items))
-
-        map_k = float(np.mean(ap_scores)) if ap_scores else 0.0
-        recall_k = float(np.mean(recall_scores)) if recall_scores else 0.0
-        coverage = float(len(recommended_items) / self.num_items) if self.num_items > 0 else 0.0
 
         return recall_k, map_k, coverage
 
