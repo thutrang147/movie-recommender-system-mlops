@@ -17,23 +17,20 @@ def resolve_paths(
     test_path: str | None,
     baseline_path: str | None,
     personalized_path: str | None,
-    knn_path: str | None,
     report_dir: str | None,
-) -> tuple[Path, Path, Path, Path, Path, Path]:
+) -> tuple[Path, Path, Path, Path, Path]:
     """Resolve project-relative defaults for evaluation inputs and outputs."""
     project_root = Path(__file__).resolve().parents[2]
     resolved_train_path = Path(train_path) if train_path else project_root / "data" / "split" / "train.parquet"
     resolved_test_path = Path(test_path) if test_path else project_root / "data" / "split" / "test.parquet"
     resolved_baseline_path = Path(baseline_path) if baseline_path else project_root / "models" / "baseline" / "most_popular_items.parquet"
     resolved_personalized_path = Path(personalized_path) if personalized_path else project_root / "models" / "personalized" / "svd_model.pkl"
-    resolved_knn_path = Path(knn_path) if knn_path else project_root / "models" / "personalized" / "knn_model.pkl"
     resolved_report_dir = Path(report_dir) if report_dir else project_root / "reports" / "evaluation"
     return (
         resolved_train_path,
         resolved_test_path,
         resolved_baseline_path,
         resolved_personalized_path,
-        resolved_knn_path,
         resolved_report_dir,
     )
 
@@ -217,6 +214,159 @@ def evaluate_personalized_model(
     }
 
 
+def build_normalized_popularity_scores(baseline_items: pd.DataFrame) -> Dict[int, float]:
+    """Build a 0-1 normalized popularity score map from baseline artifacts."""
+    if baseline_items.empty:
+        return {}
+
+    score_df = baseline_items.loc[:, ["movie_id", "score"]].copy()
+    score_df["movie_id"] = score_df["movie_id"].astype(int)
+    score_df["score"] = score_df["score"].astype(float)
+
+    min_score = float(score_df["score"].min())
+    max_score = float(score_df["score"].max())
+    if max_score <= min_score:
+        score_df["score_norm"] = 0.0
+    else:
+        score_df["score_norm"] = (score_df["score"] - min_score) / (max_score - min_score)
+
+    return dict(zip(score_df["movie_id"].tolist(), score_df["score_norm"].tolist()))
+
+
+def evaluate_hybrid_model(
+    bundle: Dict[str, object],
+    baseline_items: pd.DataFrame,
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    top_k: int,
+    relevance_threshold: float,
+    alpha: float,
+) -> Dict[str, float | int]:
+    """Evaluate a weighted hybrid of SVD score and popularity score.
+
+    final_score = alpha * svd_score_norm + (1 - alpha) * popularity_score_norm
+    """
+    if test_df.empty:
+        return {
+            "users_evaluated": 0,
+            "recall_at_k": 0.0,
+            "map_at_k": 0.0,
+            "coverage": 0.0,
+        }
+
+    model = bundle["model"]
+    item_ids: List[int] = [int(item_id) for item_id in bundle["item_ids"]]
+    train_user_seen_items: Dict[int, set[int]] = bundle["train_user_seen_items"]
+    popularity_scores = build_normalized_popularity_scores(baseline_items)
+
+    relevant_user_items = (
+        test_df[test_df["rating"] >= relevance_threshold]
+        .groupby("user_id")["movie_id"]
+        .apply(lambda values: set(map(int, values.tolist())))
+        .to_dict()
+    )
+    users = [int(user_id) for user_id in relevant_user_items.keys() if int(user_id) in train_user_seen_items]
+    if not users:
+        return {
+            "users_evaluated": 0,
+            "recall_at_k": 0.0,
+            "map_at_k": 0.0,
+            "coverage": 0.0,
+        }
+
+    recalls: List[float] = []
+    aps: List[float] = []
+    recommended_pool: set[int] = set()
+
+    for user_id in users:
+        seen_items = train_user_seen_items.get(user_id, set())
+        svd_rows: List[tuple[int, float]] = []
+        for movie_id in item_ids:
+            if movie_id in seen_items:
+                continue
+            svd_rows.append((movie_id, float(model.predict(str(user_id), str(movie_id)).est)))
+
+        if not svd_rows:
+            recalls.append(0.0)
+            aps.append(0.0)
+            continue
+
+        svd_scores = [score for _, score in svd_rows]
+        svd_min = min(svd_scores)
+        svd_max = max(svd_scores)
+
+        hybrid_rows: List[tuple[int, float]] = []
+        for movie_id, svd_score in svd_rows:
+            if svd_max <= svd_min:
+                svd_norm = 0.0
+            else:
+                svd_norm = (svd_score - svd_min) / (svd_max - svd_min)
+            pop_norm = float(popularity_scores.get(movie_id, 0.0))
+            final_score = alpha * svd_norm + (1.0 - alpha) * pop_norm
+            hybrid_rows.append((movie_id, final_score))
+
+        hybrid_rows.sort(key=lambda item: (-item[1], item[0]))
+        recommendations = [movie_id for movie_id, _ in hybrid_rows[:top_k]]
+        recommended_pool.update(recommendations)
+
+        relevant_items = relevant_user_items[user_id]
+        recalls.append(recall_at_k(recommendations, relevant_items, top_k))
+        aps.append(average_precision_at_k(recommendations, relevant_items, top_k))
+
+    coverage = len(recommended_pool) / max(len(item_ids), 1)
+    return {
+        "users_evaluated": len(users),
+        "recall_at_k": float(sum(recalls) / len(recalls)),
+        "map_at_k": float(sum(aps) / len(aps)),
+        "coverage": float(coverage),
+    }
+
+
+def select_best_hybrid_alpha(
+    bundle: Dict[str, object],
+    baseline_items: pd.DataFrame,
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    top_k: int,
+    relevance_threshold: float,
+    alphas: Sequence[float],
+) -> Dict[str, object]:
+    """Evaluate hybrid on a list of alpha values and return the best setting."""
+    alpha_metrics: Dict[str, Dict[str, float | int]] = {}
+    best_alpha = float(alphas[0])
+    best_metrics: Dict[str, float | int] | None = None
+
+    for alpha in alphas:
+        metrics = evaluate_hybrid_model(
+            bundle=bundle,
+            baseline_items=baseline_items,
+            train_df=train_df,
+            test_df=test_df,
+            top_k=top_k,
+            relevance_threshold=relevance_threshold,
+            alpha=float(alpha),
+        )
+        key = f"{float(alpha):.2f}"
+        alpha_metrics[key] = metrics
+
+        if best_metrics is None:
+            best_alpha = float(alpha)
+            best_metrics = metrics
+            continue
+
+        current_score = (float(metrics["map_at_k"]), float(metrics["recall_at_k"]))
+        best_score = (float(best_metrics["map_at_k"]), float(best_metrics["recall_at_k"]))
+        if current_score > best_score:
+            best_alpha = float(alpha)
+            best_metrics = metrics
+
+    return {
+        "best_alpha": best_alpha,
+        "metrics": best_metrics if best_metrics is not None else {},
+        "alpha_metrics": alpha_metrics,
+    }
+
+
 def save_summary(summary: Dict[str, object], report_dir: Path) -> Path:
     """Persist a JSON evaluation summary."""
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -253,14 +403,15 @@ def save_report(summary: Dict[str, object], report_dir: Path) -> Path:
         "",
     ]
 
-    if "personalized_knn" in summary:
+    if "personalized_hybrid" in summary:
         lines.extend(
             [
-                "## Personalized KNN",
-                f"- users_evaluated: {summary['personalized_knn']['users_evaluated']}",
-                f"- recall_at_{summary['top_k']}: {summary['personalized_knn']['recall_at_k']:.4f}",
-                f"- map_at_{summary['top_k']}: {summary['personalized_knn']['map_at_k']:.4f}",
-                f"- coverage: {summary['personalized_knn']['coverage']:.4f}",
+                "## Personalized Hybrid (SVD + Popularity)",
+                f"- best_alpha: {summary['personalized_hybrid']['best_alpha']:.2f}",
+                f"- users_evaluated: {summary['personalized_hybrid']['metrics']['users_evaluated']}",
+                f"- recall_at_{summary['top_k']}: {summary['personalized_hybrid']['metrics']['recall_at_k']:.4f}",
+                f"- map_at_{summary['top_k']}: {summary['personalized_hybrid']['metrics']['map_at_k']:.4f}",
+                f"- coverage: {summary['personalized_hybrid']['metrics']['coverage']:.4f}",
                 "",
             ]
         )
@@ -277,10 +428,10 @@ def run_evaluation(
     test_path: Path,
     baseline_path: Path,
     personalized_path: Path,
-    knn_path: Path,
     report_dir: Path,
     top_k: int,
     relevance_threshold: float,
+    hybrid_alphas: Sequence[float] | None,
 ) -> Dict[str, object]:
     """Run evaluation for both requested models."""
     train_df = load_split(train_path)
@@ -304,15 +455,16 @@ def run_evaluation(
         relevance_threshold=relevance_threshold,
     )
 
-    knn_metrics: Dict[str, float | int] | None = None
-    if knn_path.exists():
-        knn_bundle = load_personalized_bundle(knn_path)
-        knn_metrics = evaluate_personalized_model(
-            bundle=knn_bundle,
+    hybrid_result: Dict[str, object] | None = None
+    if hybrid_alphas:
+        hybrid_result = select_best_hybrid_alpha(
+            bundle=svd_bundle,
+            baseline_items=baseline_items,
             train_df=train_df,
             test_df=test_df,
             top_k=top_k,
             relevance_threshold=relevance_threshold,
+            alphas=hybrid_alphas,
         )
 
     summary: Dict[str, object] = {
@@ -321,13 +473,12 @@ def run_evaluation(
         "popularity_baseline": popularity_metrics,
         "personalized_svd": personalized_metrics,
         "notes": (
-            "Popularity baseline uses most_popular_items.parquet; personalized SVD uses svd_model.pkl; "
-            "personalized KNN is included only when knn_model.pkl exists."
+            "Popularity baseline uses most_popular_items.parquet; personalized SVD uses svd_model.pkl."
         ),
     }
 
-    if knn_metrics is not None:
-        summary["personalized_knn"] = knn_metrics
+    if hybrid_result is not None:
+        summary["personalized_hybrid"] = hybrid_result
 
     save_summary(summary, report_dir)
     save_report(summary, report_dir)
@@ -362,12 +513,6 @@ def main() -> Dict[str, object]:
         help="Path to the personalized SVD bundle (default: models/personalized/svd_model.pkl).",
     )
     parser.add_argument(
-        "--knn-path",
-        type=str,
-        default=None,
-        help="Path to the personalized KNN bundle (default: models/personalized/knn_model.pkl).",
-    )
-    parser.add_argument(
         "--report-dir",
         type=str,
         default=None,
@@ -380,14 +525,20 @@ def main() -> Dict[str, object]:
         default=4.0,
         help="Minimum rating to count an item as relevant.",
     )
+    parser.add_argument(
+        "--hybrid-alphas",
+        nargs="*",
+        type=float,
+        default=None,
+        help="Optional list of alpha values for SVD+popularity hybrid evaluation (e.g. 0.5 0.7 0.8 0.9).",
+    )
 
     args = parser.parse_args()
-    train_path, test_path, baseline_path, personalized_path, knn_path, report_dir = resolve_paths(
+    train_path, test_path, baseline_path, personalized_path, report_dir = resolve_paths(
         args.train_path,
         args.test_path,
         args.baseline_path,
         args.personalized_path,
-        args.knn_path,
         args.report_dir,
     )
 
@@ -396,19 +547,19 @@ def main() -> Dict[str, object]:
     print(f"- test_path: {test_path}")
     print(f"- baseline_path: {baseline_path}")
     print(f"- personalized_path: {personalized_path}")
-    print(f"- knn_path: {knn_path}")
     print(f"- top_k: {args.top_k}")
     print(f"- relevance_threshold: {args.relevance_threshold}")
+    print(f"- hybrid_alphas: {args.hybrid_alphas}")
 
     return run_evaluation(
         train_path=train_path,
         test_path=test_path,
         baseline_path=baseline_path,
         personalized_path=personalized_path,
-        knn_path=knn_path,
         report_dir=report_dir,
         top_k=args.top_k,
         relevance_threshold=args.relevance_threshold,
+        hybrid_alphas=args.hybrid_alphas,
     )
 
 

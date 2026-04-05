@@ -14,7 +14,7 @@ data/interim/*.csv
 *.pt
 *.h5
 mlruns/
-models/
+/models/
 
 # DVC-generated pipeline artifacts
 data/processed/

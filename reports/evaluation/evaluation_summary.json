@@ -13,11 +13,40 @@
     "map_at_k": 0.021888096929952073,
     "coverage": 0.2840690978886756
   },
-  "notes": "Popularity baseline uses most_popular_items.parquet; personalized SVD uses svd_model.pkl; personalized KNN is included only when knn_model.pkl exists.",
-  "personalized_knn": {
-    "users_evaluated": 5968,
-    "recall_at_k": 0.001147024088372568,
-    "map_at_k": 0.0011261383463126078,
-    "coverage": 0.31094049904030713
+  "notes": "Popularity baseline uses most_popular_items.parquet; personalized SVD uses svd_model.pkl.",
+  "personalized_hybrid": {
+    "best_alpha": 0.5,
+    "metrics": {
+      "users_evaluated": 5968,
+      "recall_at_k": 0.04877624803582255,
+      "map_at_k": 0.04364769313575141,
+      "coverage": 0.06471072114066356
+    },
+    "alpha_metrics": {
+      "0.50": {
+        "users_evaluated": 5968,
+        "recall_at_k": 0.04877624803582255,
+        "map_at_k": 0.04364769313575141,
+        "coverage": 0.06471072114066356
+      },
+      "0.70": {
+        "users_evaluated": 5968,
+        "recall_at_k": 0.0492439391289328,
+        "map_at_k": 0.04327829339305719,
+        "coverage": 0.14559912256649302
+      },
+      "0.80": {
+        "users_evaluated": 5968,
+        "recall_at_k": 0.04594222439420632,
+        "map_at_k": 0.03996133275913633,
+        "coverage": 0.20427748834658624
+      },
+      "0.90": {
+        "users_evaluated": 5968,
+        "recall_at_k": 0.03880709425358478,
+        "map_at_k": 0.03290986142837372,
+        "coverage": 0.24431039210309843
+      }
+    }
   }
 }

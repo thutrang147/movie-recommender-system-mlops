@@ -24,7 +24,6 @@ uv run python src/data/preprocess.py
 uv run python src/data/split.py
 uv run python src/models/baseline.py
 uv run python src/models/train.py
-uv run python src/models/train_knn.py
 uv run python src/models/evaluate.py
 uv run python src/data/ingest.py
 uv run pytest
@@ -43,7 +42,6 @@ data/raw/*.dat
   -> split.py -> data/split/{train,val,test}.parquet + split report
   -> baseline.py -> models/baseline/ + baseline report
   -> train.py -> models/personalized/ + training report
-  -> train_knn.py -> models/personalized/ + training report
   -> evaluate.py -> reports/evaluation/ + evaluation report
   -> ingest.py -> data/processed/*.parquet
   -> dvc add/push/pull -> DVC remote
@@ -57,7 +55,6 @@ data/raw/*.dat
 - `src/data/split.py`: user-wise temporal split into train/val/test.
 - `src/models/baseline.py`: popularity-based baseline training and evaluation.
 - `src/models/train.py`: personalized SVD training and artifact export.
-- `src/models/train_knn.py`: item-based KNN training with validation tuning.
 - `src/models/recommend.py`: generate top-N recommendations for a user.
 - `src/models/evaluate.py`: evaluate baseline and personalized models on the test split.
 - `src/data/ingest.py`: cleaned CSV (or `--from-raw`) -> parquet in `data/processed`.

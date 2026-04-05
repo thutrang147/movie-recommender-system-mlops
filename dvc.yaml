@@ -1,6 +1,6 @@
 stages:
   preprocess_data:
-    cmd: uv run python src/data/preprocess.py
+    cmd: uv run python src/data/preprocess.py --min-user-interactions 5 --min-movie-interactions 5
     deps:
       - src/data/preprocess.py
       - src/data/common.py
@@ -50,26 +50,14 @@ stages:
       - models/personalized/
       - reports/personalized/
 
-  personalized_knn_train:
-    cmd: uv run python src/models/train_knn.py
-    deps:
-      - src/models/train_knn.py
-      - data/split/train.parquet
-      - data/split/val.parquet
-    outs:
-      - models/personalized/knn_model.pkl
-      - models/personalized/knn_model.json
-      - reports/personalized/train_knn_report.md
-
   evaluate_models:
-    cmd: uv run python src/models/evaluate.py
+    cmd: uv run python src/models/evaluate.py --hybrid-alphas 0.5 0.7 0.8 0.9
     deps:
       - src/models/evaluate.py
       - data/split/train.parquet
       - data/split/test.parquet
       - models/baseline/most_popular_items.parquet
       - models/personalized/svd_model.pkl
-      - models/personalized/knn_model.pkl
     outs:
       - reports/evaluation/
 
