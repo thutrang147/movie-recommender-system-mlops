@@ -1,4 +1,78 @@
 stages:
+  preprocess_data:
+    cmd: uv run python src/data/preprocess.py
+    deps:
+      - src/data/preprocess.py
+      - src/data/common.py
+      - src/data/load_data.py
+      - data/interim/ratings_cleaned.csv
+      - data/interim/movies_cleaned.csv
+      - data/interim/users_cleaned.csv
+    outs:
+      - data/processed/ratings_preprocessed.parquet
+      - data/processed/movies_preprocessed.parquet
+      - data/processed/users_preprocessed.parquet
+      - data/processed/user_mapping.parquet
+      - data/processed/movie_mapping.parquet
+      - data/processed/preprocess_summary.json
+      - reports/preprocessing/preprocess_report.md
+
+  split_data:
+    cmd: uv run python src/data/split.py
+    deps:
+      - src/data/split.py
+      - data/processed/ratings_preprocessed.parquet
+    outs:
+      - data/split/train.parquet
+      - data/split/val.parquet
+      - data/split/test.parquet
+      - data/split/split_summary.json
+      - reports/splitting/split_report.md
+
+  baseline_train:
+    cmd: uv run python src/models/baseline.py
+    deps:
+      - src/models/baseline.py
+      - data/split/train.parquet
+      - data/split/val.parquet
+      - data/split/test.parquet
+    outs:
+      - models/baseline/
+      - reports/baseline/
+
+  personalized_train:
+    cmd: uv run python src/models/train.py
+    deps:
+      - src/models/train.py
+      - data/split/train.parquet
+      - data/split/val.parquet
+    outs:
+      - models/personalized/
+      - reports/personalized/
+
+  personalized_knn_train:
+    cmd: uv run python src/models/train_knn.py
+    deps:
+      - src/models/train_knn.py
+      - data/split/train.parquet
+      - data/split/val.parquet
+    outs:
+      - models/personalized/knn_model.pkl
+      - models/personalized/knn_model.json
+      - reports/personalized/train_knn_report.md
+
+  evaluate_models:
+    cmd: uv run python src/models/evaluate.py
+    deps:
+      - src/models/evaluate.py
+      - data/split/train.parquet
+      - data/split/test.parquet
+      - models/baseline/most_popular_items.parquet
+      - models/personalized/svd_model.pkl
+      - models/personalized/knn_model.pkl
+    outs:
+      - reports/evaluation/
+
   ingest_processed:
     cmd: uv run python src/data/ingest.py
     deps:

@@ -1,0 +1,23 @@
+{
+  "top_k": 10,
+  "relevance_threshold": 4.0,
+  "popularity_baseline": {
+    "users_evaluated": 5968,
+    "recall_at_k": 0.04430193842939371,
+    "map_at_k": 0.03799008349181689,
+    "coverage": 0.029613380860981628
+  },
+  "personalized_svd": {
+    "users_evaluated": 5968,
+    "recall_at_k": 0.0270238922456144,
+    "map_at_k": 0.021888096929952073,
+    "coverage": 0.2840690978886756
+  },
+  "notes": "Popularity baseline uses most_popular_items.parquet; personalized SVD uses svd_model.pkl; personalized KNN is included only when knn_model.pkl exists.",
+  "personalized_knn": {
+    "users_evaluated": 5968,
+    "recall_at_k": 0.001147024088372568,
+    "map_at_k": 0.0011261383463126078,
+    "coverage": 0.31094049904030713
+  }
+}

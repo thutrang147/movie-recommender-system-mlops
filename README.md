@@ -20,6 +20,12 @@ uv run pytest
 uv sync
 uv run python src/data/load_data.py
 uv run python src/data/validate_data.py --save-report
+uv run python src/data/preprocess.py
+uv run python src/data/split.py
+uv run python src/models/baseline.py
+uv run python src/models/train.py
+uv run python src/models/train_knn.py
+uv run python src/models/evaluate.py
 uv run python src/data/ingest.py
 uv run pytest
 ```
@@ -33,6 +39,12 @@ Use Option B when you have raw data locally and want to rebuild artifacts.
 data/raw/*.dat
   -> load_data.py -> data/interim/*_cleaned.csv
   -> validate_data.py -> docs/data_quality_report.md (optional)
+  -> preprocess.py -> data/processed/*_preprocessed.parquet + audit report
+  -> split.py -> data/split/{train,val,test}.parquet + split report
+  -> baseline.py -> models/baseline/ + baseline report
+  -> train.py -> models/personalized/ + training report
+  -> train_knn.py -> models/personalized/ + training report
+  -> evaluate.py -> reports/evaluation/ + evaluation report
   -> ingest.py -> data/processed/*.parquet
   -> dvc add/push/pull -> DVC remote
 ```
@@ -41,7 +53,36 @@ data/raw/*.dat
 
 - `src/data/load_data.py`: raw DAT -> cleaned CSV in `data/interim`.
 - `src/data/validate_data.py`: quality checks + optional markdown report.
+- `src/data/preprocess.py`: cast, filter, merge, encode, and save training-ready parquet artifacts.
+- `src/data/split.py`: user-wise temporal split into train/val/test.
+- `src/models/baseline.py`: popularity-based baseline training and evaluation.
+- `src/models/train.py`: personalized SVD training and artifact export.
+- `src/models/train_knn.py`: item-based KNN training with validation tuning.
+- `src/models/recommend.py`: generate top-N recommendations for a user.
+- `src/models/evaluate.py`: evaluate baseline and personalized models on the test split.
 - `src/data/ingest.py`: cleaned CSV (or `--from-raw`) -> parquet in `data/processed`.
+
+## Evaluation
+
+Run the evaluation step:
+
+```bash
+uv run python src/models/evaluate.py
+```
+
+## Personalized Training And Recommendation
+
+Train the personalized model:
+
+```bash
+uv run python src/models/train.py
+```
+
+Generate recommendations for one user:
+
+```bash
+uv run python src/models/recommend.py --user-id 1 --top-k 10
+```
 
 ## 1. Requirements
 
