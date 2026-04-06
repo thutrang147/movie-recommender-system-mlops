@@ -6,10 +6,18 @@ import argparse
 import json
 import math
 import pickle
+import sys
 from pathlib import Path
 from typing import Dict, Iterable, List, Sequence
 
 import pandas as pd  # type: ignore[import-not-found]
+
+project_root = Path(__file__).resolve().parents[2]
+if str(project_root) not in sys.path:
+    sys.path.append(str(project_root))
+
+from src.models.bpr import evaluate_bundle_ranking
+from src.models.content_based import ContentBasedConfig, ContentBasedRecommender
 
 
 def resolve_paths(
@@ -164,6 +172,25 @@ def evaluate_personalized_model(
             "coverage": 0.0,
         }
 
+    algorithm = str(bundle.get("algorithm", "svd_surprise"))
+    if algorithm == "bpr_mf_numpy":
+        return evaluate_bundle_ranking(
+            bundle=bundle,
+            test_df=test_df,
+            top_k=top_k,
+            relevance_threshold=relevance_threshold,
+        )
+    if algorithm == "content_based_tfidf":
+        model = ContentBasedRecommender(ContentBasedConfig(**bundle["config"]))
+        model.movie_features = bundle["movie_features"]
+        model.movie_ids = [int(movie_id) for movie_id in bundle["movie_ids"]]
+        model.movie_id_to_index = {int(movie_id): int(index) for movie_id, index in bundle["movie_id_to_index"].items()}
+        model.user_profiles = bundle["user_profiles"]
+        model.train_user_seen_items = bundle["train_user_seen_items"]
+        model.movie_popularity_order = [int(movie_id) for movie_id in bundle.get("movie_popularity_order", [])]
+        model.best_item_scores = bundle.get("best_item_scores", {})
+        return model.ranking_metrics(test_df, top_k=top_k)
+
     model = bundle["model"]
     item_ids: List[int] = [int(item_id) for item_id in bundle["item_ids"]]
     train_user_seen_items: Dict[int, set[int]] = bundle["train_user_seen_items"]
@@ -180,11 +207,13 @@ def evaluate_personalized_model(
             "users_evaluated": 0,
             "recall_at_k": 0.0,
             "map_at_k": 0.0,
+            "hit_rate_at_k": 0.0,
             "coverage": 0.0,
         }
 
     recalls: List[float] = []
     aps: List[float] = []
+    hits: List[int] = []
     recommended_pool: set[int] = set()
 
     for user_id in users:
@@ -204,12 +233,14 @@ def evaluate_personalized_model(
         relevant_items = relevant_user_items[user_id]
         recalls.append(recall_at_k(recommendations, relevant_items, top_k))
         aps.append(average_precision_at_k(recommendations, relevant_items, top_k))
+        hits.append(int(len(set(recommendations) & relevant_items) > 0))
 
     coverage = len(recommended_pool) / max(len(item_ids), 1)
     return {
         "users_evaluated": len(users),
         "recall_at_k": float(sum(recalls) / len(recalls)),
         "map_at_k": float(sum(aps) / len(aps)),
+        "hit_rate_at_k": float(sum(hits) / len(hits)),
         "coverage": float(coverage),
     }
 
@@ -399,6 +430,7 @@ def save_report(summary: Dict[str, object], report_dir: Path) -> Path:
         f"- users_evaluated: {summary['personalized_svd']['users_evaluated']}",
         f"- recall_at_{summary['top_k']}: {summary['personalized_svd']['recall_at_k']:.4f}",
         f"- map_at_{summary['top_k']}: {summary['personalized_svd']['map_at_k']:.4f}",
+        f"- hit_rate_at_{summary['top_k']}: {summary['personalized_svd']['hit_rate_at_k']:.4f}",
         f"- coverage: {summary['personalized_svd']['coverage']:.4f}",
         "",
     ]
@@ -473,7 +505,7 @@ def run_evaluation(
         "popularity_baseline": popularity_metrics,
         "personalized_svd": personalized_metrics,
         "notes": (
-            "Popularity baseline uses most_popular_items.parquet; personalized SVD uses svd_model.pkl."
+            "Popularity baseline uses most_popular_items.parquet; personalized bundle supports both SVD and BPR artifacts."
         ),
     }
 

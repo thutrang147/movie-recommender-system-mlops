@@ -1,0 +1,22 @@
+main_model: bpr
+benchmark_model: baseline_most_popular
+support_model: content_based
+
+bpr:
+  factors: 64
+  learning_rate: 0.03
+  reg: 0.001
+  epochs: 30
+  n_samples_per_epoch: 200000
+  random_state: 42
+  patience: 5
+
+content_based:
+  min_df: 2
+  max_features: 12000
+  ngram_range: [1, 2]
+
+artifacts:
+  svd_bundle: models/personalized/svd_model.pkl
+  bpr_bundle: models/personalized/bpr_model.pkl
+  content_bundle: models/personalized/content_based_model.pkl

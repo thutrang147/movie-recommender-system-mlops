@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - docs/readme-uv-dvc-cleanup
+      - train
 
 jobs:
   test:
@@ -25,6 +26,9 @@ jobs:
 
       - name: Install dependencies
         run: uv sync
+
+      - name: Smoke compile src modules
+        run: uv run python -m py_compile src/models/baseline.py src/models/train.py src/models/train_bpr.py src/models/train_content_based.py src/models/evaluate.py src/models/recommend.py src/models/final_benchmark.py src/models/log_mlflow_benchmark.py
 
       - name: Run unit tests
         run: uv run pytest -q

@@ -50,6 +50,18 @@ stages:
       - models/personalized/
       - reports/personalized/
 
+  personalized_bpr_train:
+    cmd: uv run python src/models/train_bpr.py
+    deps:
+      - src/models/train_bpr.py
+      - src/models/bpr.py
+      - data/split/train.parquet
+      - data/split/val.parquet
+    outs:
+      - models/personalized/bpr_model.pkl
+      - models/personalized/bpr_model.json
+      - reports/personalized/bpr_train_report.md
+
   evaluate_models:
     cmd: uv run python src/models/evaluate.py --hybrid-alphas 0.5 0.7 0.8 0.9
     deps:
@@ -60,6 +72,26 @@ stages:
       - models/personalized/svd_model.pkl
     outs:
       - reports/evaluation/
+
+  final_benchmark:
+    cmd: uv run python src/models/final_benchmark.py
+    deps:
+      - src/models/final_benchmark.py
+      - src/models/evaluate.py
+      - src/models/content_based.py
+      - src/models/bpr.py
+      - reports/baseline/baseline_report.md
+      - models/personalized/svd_model.pkl
+      - models/personalized/bpr_model.pkl
+      - models/personalized/content_based_model.pkl
+      - data/split/train.parquet
+      - data/split/test.parquet
+      - configs/data.yaml
+      - configs/model.yaml
+      - configs/evaluation.yaml
+    outs:
+      - reports/evaluation/final_comparison.md
+      - reports/evaluation/final_comparison.json
 
   ingest_processed:
     cmd: uv run python src/data/ingest.py

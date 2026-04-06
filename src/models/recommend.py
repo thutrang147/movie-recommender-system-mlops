@@ -4,10 +4,18 @@ from __future__ import annotations
 
 import argparse
 import pickle
+import sys
 from pathlib import Path
 from typing import Dict, List
 
 import pandas as pd  # type: ignore[import-not-found]
+
+project_root = Path(__file__).resolve().parents[2]
+if str(project_root) not in sys.path:
+    sys.path.append(str(project_root))
+
+from src.models.bpr import recommend_with_bundle
+from src.models.content_based import recommend_with_bundle as recommend_with_content_bundle
 
 
 def resolve_paths(
@@ -45,10 +53,29 @@ def recommend_for_user(
     top_k: int,
 ) -> pd.DataFrame:
     """Rank unseen items for one user using the trained bundle."""
-    model = bundle["model"]
+    algorithm = str(bundle.get("algorithm", "svd_surprise"))
     train_user_seen_items = bundle["train_user_seen_items"]
+    popularity_order_key = "item_popularity_order" if "item_popularity_order" in bundle else "movie_popularity_order"
+    popularity_order: List[int] = [int(item_id) for item_id in bundle.get(popularity_order_key, [])]
+
+    if algorithm == "bpr_mf_numpy":
+        rows = recommend_with_bundle(bundle=bundle, user_id=user_id, top_k=top_k)
+        if not rows:
+            return pd.DataFrame(columns=["rank", "movie_id", "score"])
+        recommendations = pd.DataFrame(rows, columns=["movie_id", "score"])
+        recommendations["rank"] = range(1, len(recommendations) + 1)
+        return recommendations.loc[:, ["rank", "movie_id", "score"]]
+
+    if algorithm == "content_based_tfidf":
+        recommendations_list = recommend_with_content_bundle(bundle=bundle, user_id=user_id, top_k=top_k)
+        if not recommendations_list:
+            return pd.DataFrame(columns=["rank", "movie_id", "score"])
+        recommendations = pd.DataFrame(recommendations_list, columns=["movie_id", "score"])
+        recommendations["rank"] = range(1, len(recommendations) + 1)
+        return recommendations.loc[:, ["rank", "movie_id", "score"]]
+
+    model = bundle["model"]
     item_ids: List[int] = [int(item_id) for item_id in bundle["item_ids"]]
-    popularity_order: List[int] = [int(item_id) for item_id in bundle["item_popularity_order"]]
 
     if user_id not in train_user_seen_items:
         fallback = pd.DataFrame({"movie_id": popularity_order[:top_k], "score": [float(top_k - index) for index in range(min(top_k, len(popularity_order)))]})

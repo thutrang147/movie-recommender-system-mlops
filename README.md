@@ -24,6 +24,7 @@ uv run python src/data/preprocess.py
 uv run python src/data/split.py
 uv run python src/models/baseline.py
 uv run python src/models/train.py
+uv run python src/models/train_bpr.py
 uv run python src/models/evaluate.py
 uv run python src/data/ingest.py
 uv run pytest
@@ -55,9 +56,14 @@ data/raw/*.dat
 - `src/data/split.py`: user-wise temporal split into train/val/test.
 - `src/models/baseline.py`: popularity-based baseline training and evaluation.
 - `src/models/train.py`: personalized SVD training and artifact export.
+- `src/models/train_bpr.py`: personalized BPR-MF (NumPy) training and artifact export.
+- `src/models/bpr.py`: BPR model, serialization helpers, and ranking evaluation helpers.
 - `src/models/recommend.py`: generate top-N recommendations for a user.
 - `src/models/evaluate.py`: evaluate baseline and personalized models on the test split.
 - `src/data/ingest.py`: cleaned CSV (or `--from-raw`) -> parquet in `data/processed`.
+- `src/serving/app.py`: FastAPI serving app (`/health`, `/recommend/{user_id}`).
+- `src/serving/predictor.py`: model-registry-based predictor with popularity fallback.
+- `src/serving/batch_recommend.py`: batch inference script for offline recommendation output.
 
 ## Evaluation
 
@@ -65,6 +71,18 @@ Run the evaluation step:
 
 ```bash
 uv run python src/models/evaluate.py
+```
+
+Generate a frozen final benchmark table (Baseline/SVD/BPR/Content-based):
+
+```bash
+uv run python src/models/final_benchmark.py
+```
+
+Log that benchmark table into MLflow runs:
+
+```bash
+uv run python src/models/log_mlflow_benchmark.py
 ```
 
 ## Personalized Training And Recommendation
@@ -75,11 +93,98 @@ Train the personalized model:
 uv run python src/models/train.py
 ```
 
+Train the BPR personalized model:
+
+```bash
+uv run python src/models/train_bpr.py
+```
+
+Train the content-based personalized model:
+
+```bash
+uv run python src/models/train_content_based.py
+```
+
 Generate recommendations for one user:
 
 ```bash
 uv run python src/models/recommend.py --user-id 1 --top-k 10
 ```
+
+Use BPR artifact for recommendation:
+
+```bash
+uv run python src/models/recommend.py --artifact-path models/personalized/bpr_model.pkl --user-id 1 --top-k 10
+```
+
+Use content-based artifact for recommendation:
+
+```bash
+uv run python src/models/recommend.py --artifact-path models/personalized/content_based_model.pkl --user-id 1 --top-k 10
+```
+
+## Week 12 Deployment
+
+Model serving uses a lightweight registry file at `models/registry.json`.
+
+Run API locally:
+
+```bash
+make api-run
+```
+
+Check health endpoint:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+Check known-user recommendation:
+
+```bash
+curl "http://127.0.0.1:8000/recommend/1?top_k=6"
+```
+
+Check unknown-user fallback:
+
+```bash
+curl "http://127.0.0.1:8000/recommend/999999?top_k=6"
+```
+
+Run batch inference:
+
+```bash
+make api-batch
+```
+
+Build and run with Docker:
+
+```bash
+docker build -t movielens-api .
+docker run -p 8000:8000 movielens-api
+```
+
+Or use compose:
+
+```bash
+docker compose up --build
+```
+
+## Week 11 Freeze Checklist
+
+Before shifting to CI/reproducibility work, freeze the following:
+
+- Main model: BPR (`models/personalized/bpr_model.pkl`)
+- Benchmark model: most popular baseline
+- Support model: content-based
+- Test split: `data/split/test.parquet` (no further tuning against this split)
+
+Config files are provided in `configs/`:
+
+- `configs/data.yaml`: split and metadata paths
+- `configs/model.yaml`: artifact paths and model defaults
+- `configs/evaluation.yaml`: frozen evaluation protocol (`top_k=10`, `relevance_threshold=4.0`)
+- `configs/mlflow.yaml`: MLflow tracking config
 
 ## 1. Requirements
 

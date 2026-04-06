@@ -12,16 +12,9 @@
 
 ## Personalized SVD
 - users_evaluated: 5968
-- recall_at_10: 0.0270
-- map_at_10: 0.0219
-- coverage: 0.2841
-
-## Personalized Hybrid (SVD + Popularity)
-- best_alpha: 0.50
-- users_evaluated: 5968
-- recall_at_10: 0.0488
-- map_at_10: 0.0436
-- coverage: 0.0647
+- recall_at_10: 0.0131
+- map_at_10: 0.0064
+- coverage: 0.4139
 
 ## Notes
-Popularity baseline uses most_popular_items.parquet; personalized SVD uses svd_model.pkl.
+Popularity baseline uses most_popular_items.parquet; personalized bundle supports both SVD and BPR artifacts.

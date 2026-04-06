@@ -1,4 +1,4 @@
-.PHONY: install data-csv validate report ingest-parquet data dvc-add dvc-push dvc-pull
+.PHONY: install data-csv validate report ingest-parquet data dvc-add dvc-push dvc-pull bpr-train content-train final-benchmark mlflow-log api-run api-batch
 
 PYTHON_UV := $(shell command -v uv 2>/dev/null)
 
@@ -58,4 +58,46 @@ dvc-pull:
 		uv run dvc pull; \
 	else \
 		python -m dvc pull; \
+	fi
+
+bpr-train:
+	@if [ -n "$(PYTHON_UV)" ]; then \
+		uv run python src/models/train_bpr.py; \
+	else \
+		python src/models/train_bpr.py; \
+	fi
+
+content-train:
+	@if [ -n "$(PYTHON_UV)" ]; then \
+		uv run python src/models/train_content_based.py; \
+	else \
+		python src/models/train_content_based.py; \
+	fi
+
+final-benchmark:
+	@if [ -n "$(PYTHON_UV)" ]; then \
+		uv run python src/models/final_benchmark.py; \
+	else \
+		python src/models/final_benchmark.py; \
+	fi
+
+mlflow-log:
+	@if [ -n "$(PYTHON_UV)" ]; then \
+		uv run python src/models/log_mlflow_benchmark.py; \
+	else \
+		python src/models/log_mlflow_benchmark.py; \
+	fi
+
+api-run:
+	@if [ -n "$(PYTHON_UV)" ]; then \
+		uv run uvicorn src.serving.app:app --host 0.0.0.0 --port 8000; \
+	else \
+		uvicorn src.serving.app:app --host 0.0.0.0 --port 8000; \
+	fi
+
+api-batch:
+	@if [ -n "$(PYTHON_UV)" ]; then \
+		uv run python src/serving/batch_recommend.py --user-ids-path data/split/test.parquet --top-k 10; \
+	else \
+		python src/serving/batch_recommend.py --user-ids-path data/split/test.parquet --top-k 10; \
 	fi

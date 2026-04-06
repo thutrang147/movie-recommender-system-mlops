@@ -27,3 +27,6 @@ data/split/
 
 # Large archives
 *.zip
+
+# Serving/batch generated outputs
+reports/evaluation/batch_recommendations.jsonl

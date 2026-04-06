@@ -29,10 +29,10 @@ class TrainConfig:
 
 
 DEFAULT_SEARCH_SPACE = {
-    "n_factors": (50, 100),
-    "n_epochs": (20, 30),
-    "lr_all": (0.003, 0.005),
-    "reg_all": (0.02, 0.05),
+    "n_factors": (20, 50, 100, 150),
+    "n_epochs": (20, 40, 60),
+    "lr_all": (0.002, 0.003, 0.005, 0.007),
+    "reg_all": (0.02, 0.05, 0.08),
 }
 
 
@@ -377,14 +377,35 @@ def run_training(
     report_dir: Path,
     config: TrainConfig,
 ) -> Dict[str, object]:
-    """Fit the SVD model and persist artifacts."""
+    """Fit the SVD model and persist artifacts.
+
+    Workflow:
+    1) Select hyperparameters on validation split
+    2) Refit final model on train+val with selected hyperparameters
+    """
     train_df = load_split(train_path)
     val_df = load_split(val_path)
     selected_config, candidate_metrics = select_best_candidate(train_df=train_df, val_df=val_df, base_config=config)
-    algo, validation_metrics = fit_and_score_candidate(train_df=train_df, val_df=val_df, candidate=selected_config)
 
-    train_user_seen_items = build_user_seen_items(train_df)
-    item_stats = build_item_stats(train_df)
+    # Keep validation metrics from train-only fit for fair model selection reporting.
+    _, validation_metrics = fit_and_score_candidate(train_df=train_df, val_df=val_df, candidate=selected_config)
+
+    # Refit final model on train+val after selecting hyperparameters.
+    final_train_df = pd.concat([train_df, val_df], ignore_index=True)
+    final_train_data = build_surprise_dataset(final_train_df)
+    final_trainset = final_train_data.build_full_trainset()
+
+    algo = SVD(
+        n_factors=selected_config.n_factors,
+        n_epochs=selected_config.n_epochs,
+        lr_all=selected_config.lr_all,
+        reg_all=selected_config.reg_all,
+        random_state=selected_config.random_state,
+    )
+    algo.fit(final_trainset)
+
+    train_user_seen_items = build_user_seen_items(final_train_df)
+    item_stats = build_item_stats(final_train_df)
     item_ids = item_stats["movie_id"].astype(int).tolist()
 
     item_popularity_order = item_stats["movie_id"].astype(int).tolist()
@@ -406,9 +427,10 @@ def run_training(
         "config": asdict(selected_config),
         "validation_metrics": validation_metrics,
         "candidate_metrics": candidate_metrics,
+        "final_fit_rows": int(len(final_train_df)),
         "artifact_path": str(model_path),
         "notes": (
-            "The model was selected by validation MAP@K over a compact SVD search grid, then refit with the winning hyperparameters."
+            "The model was selected by validation MAP@K over an expanded SVD search grid, then refit on train+val with the winning hyperparameters."
         ),
     }
     save_summary(summary, model_path)
