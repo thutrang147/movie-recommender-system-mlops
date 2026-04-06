@@ -1,4 +1,4 @@
-.PHONY: install data-csv validate report ingest-parquet data dvc-add dvc-push dvc-pull bpr-train content-train final-benchmark mlflow-log api-run api-batch
+.PHONY: install data-csv validate report ingest-parquet data dvc-add dvc-push dvc-pull bpr-train content-train final-benchmark mlflow-log api-run api-batch monitoring-report
 
 PYTHON_UV := $(shell command -v uv 2>/dev/null)
 
@@ -100,4 +100,11 @@ api-batch:
 		uv run python src/serving/batch_recommend.py --user-ids-path data/split/test.parquet --top-k 10; \
 	else \
 		python src/serving/batch_recommend.py --user-ids-path data/split/test.parquet --top-k 10; \
+	fi
+
+monitoring-report:
+	@if [ -n "$(PYTHON_UV)" ]; then \
+		uv run python src/monitoring/report.py; \
+	else \
+		python src/monitoring/report.py; \
 	fi

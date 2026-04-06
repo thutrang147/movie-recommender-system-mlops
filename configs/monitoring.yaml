@@ -1,0 +1,16 @@
+logging:
+  request_log_path: reports/monitoring/request_logs.jsonl
+
+thresholds:
+  fallback_rate_warn: 0.40
+  avg_latency_ms_warn: 1000.0
+  error_rate_warn: 0.02
+  drift_score_warn: 0.20
+  unknown_user_rate_warn: 0.40
+
+drift:
+  min_events: 20
+
+report:
+  output_markdown: reports/monitoring/monitoring_report.md
+  output_json: reports/monitoring/monitoring_report.json

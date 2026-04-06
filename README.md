@@ -170,6 +170,26 @@ Or use compose:
 docker compose up --build
 ```
 
+## Week 13 Monitoring
+
+Request logging, drift checks, and rule-based alerts are provided for production-like monitoring.
+
+Generate monitoring report from request logs:
+
+```bash
+make monitoring-report
+```
+
+Monitoring artifacts:
+
+- Request logs: `reports/monitoring/request_logs.jsonl`
+- Monitoring report (markdown): `reports/monitoring/monitoring_report.md`
+- Monitoring report (json): `reports/monitoring/monitoring_report.json`
+
+Default monitoring thresholds are configurable in:
+
+- `configs/monitoring.yaml`
+
 ## Week 11 Freeze Checklist
 
 Before shifting to CI/reproducibility work, freeze the following:

@@ -30,3 +30,4 @@ data/split/
 
 # Serving/batch generated outputs
 reports/evaluation/batch_recommendations.jsonl
+reports/monitoring/request_logs.jsonl
