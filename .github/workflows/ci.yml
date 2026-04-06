@@ -28,7 +28,7 @@ jobs:
         run: uv sync
 
       - name: Smoke compile src modules
-        run: uv run python -m py_compile src/models/baseline.py src/models/train.py src/models/train_bpr.py src/models/train_content_based.py src/models/evaluate.py src/models/recommend.py src/models/final_benchmark.py src/models/log_mlflow_benchmark.py src/serving/app.py src/serving/predictor.py src/monitoring/logger.py src/monitoring/drift.py src/monitoring/report.py
+        run: uv run python -m py_compile src/models/baseline.py src/models/train.py src/models/train_bpr.py src/models/train_content_based.py src/models/evaluate.py src/models/recommend.py src/models/final_benchmark.py src/models/log_mlflow_benchmark.py src/serving/app.py src/serving/predictor.py src/monitoring/logger.py src/monitoring/drift.py src/monitoring/report.py src/pipeline/retrain_pipeline.py
 
       - name: Run unit tests
         run: uv run pytest -q
