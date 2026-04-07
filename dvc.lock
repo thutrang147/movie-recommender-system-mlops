@@ -88,3 +88,250 @@ stages:
       hash: md5
       md5: b172b0c46afe7d157b2398052153bbbf
       size: 4769780
+  preprocess_data:
+    cmd: uv run python src/data/preprocess.py --min-user-interactions 5 
+      --min-movie-interactions 5
+    deps:
+    - path: data/interim/movies_cleaned.csv
+      hash: md5
+      md5: 99bc668cb89ac9413fc01cbdaf384413
+      size: 165612
+    - path: data/interim/ratings_cleaned.csv
+      hash: md5
+      md5: c2d44797dbc26922bc5e1ee993a44052
+      size: 21593538
+    - path: data/interim/users_cleaned.csv
+      hash: md5
+      md5: d3d906edb43d8dd8aac7e1e4decfa8f7
+      size: 110247
+    - path: src/data/common.py
+      hash: md5
+      md5: dbc347fb22de565f160d0559f984e993
+      size: 2376
+    - path: src/data/load_data.py
+      hash: md5
+      md5: 86a27b5a4990660cda6a9689b1b167fa
+      size: 3416
+    - path: src/data/preprocess.py
+      hash: md5
+      md5: a661edf4483edd7387a30930dba7ed3d
+      size: 20613
+    outs:
+    - path: data/processed/movie_mapping.parquet
+      hash: md5
+      md5: 01da9b33b72e9ea63c876487b7eff2b3
+      size: 39376
+    - path: data/processed/movies_preprocessed.parquet
+      hash: md5
+      md5: c475c0e7341d71bdc41b9be0f0135a7c
+      size: 111707
+    - path: data/processed/preprocess_summary.json
+      hash: md5
+      md5: 0e9104be0b25342a0d391e894e40718a
+      size: 924
+    - path: data/processed/ratings_preprocessed.parquet
+      hash: md5
+      md5: d4dd88b7db06f2c21df81ba332d5d5e9
+      size: 11628668
+    - path: data/processed/user_mapping.parquet
+      hash: md5
+      md5: d9e2736bc5099dbe0048fb005eecf1cd
+      size: 69755
+    - path: data/processed/users_preprocessed.parquet
+      hash: md5
+      md5: 338683a321ea8b21e9c46bce72c49dde
+      size: 106547
+    - path: reports/preprocessing/preprocess_report.md
+      hash: md5
+      md5: b1304477ba2a6bc04c9e2a3061c5ac79
+      size: 1117
+  split_data:
+    cmd: uv run python src/data/split.py
+    deps:
+    - path: data/processed/ratings_preprocessed.parquet
+      hash: md5
+      md5: d4dd88b7db06f2c21df81ba332d5d5e9
+      size: 11628668
+    - path: src/data/split.py
+      hash: md5
+      md5: b5cb12f54bbdc4ba474223cdb1e53395
+      size: 9927
+    outs:
+    - path: data/split/split_summary.json
+      hash: md5
+      md5: 549f39c3a34c82cc55dd3e155acdd4a5
+      size: 452
+    - path: data/split/test.parquet
+      hash: md5
+      md5: 4e72924e11d21573e29d32b327f65bbe
+      size: 2987511
+    - path: data/split/train.parquet
+      hash: md5
+      md5: 177b6c37c1c4e70d3a528ddc937d9f5b
+      size: 7727854
+    - path: data/split/val.parquet
+      hash: md5
+      md5: b77e28331cbacd8a0df2e14d5cf3f081
+      size: 1464988
+    - path: reports/splitting/split_report.md
+      hash: md5
+      md5: 2616da343019b7b442ba6006ab3e040f
+      size: 517
+  baseline_train:
+    cmd: uv run python src/models/baseline.py
+    deps:
+    - path: data/split/test.parquet
+      hash: md5
+      md5: 4e72924e11d21573e29d32b327f65bbe
+      size: 2987511
+    - path: data/split/train.parquet
+      hash: md5
+      md5: 177b6c37c1c4e70d3a528ddc937d9f5b
+      size: 7727854
+    - path: data/split/val.parquet
+      hash: md5
+      md5: b77e28331cbacd8a0df2e14d5cf3f081
+      size: 1464988
+    - path: src/models/baseline.py
+      hash: md5
+      md5: e3aeceebd83ab7a0da5370f31745eb95
+      size: 14503
+    outs:
+    - path: models/baseline/
+      hash: md5
+      md5: c1a66f022f6528d1b3c81ca8cf565f52.dir
+      size: 199083
+      nfiles: 3
+    - path: reports/baseline/
+      hash: md5
+      md5: b99dca1c510e7f4744b471c3ff7e2c91.dir
+      size: 911
+      nfiles: 1
+  content_based_train:
+    cmd: uv run python src/models/train_content_based.py
+    deps:
+    - path: data/processed/movies_preprocessed.parquet
+      hash: md5
+      md5: c475c0e7341d71bdc41b9be0f0135a7c
+      size: 111707
+    - path: data/split/train.parquet
+      hash: md5
+      md5: 177b6c37c1c4e70d3a528ddc937d9f5b
+      size: 7727854
+    - path: src/models/content_based.py
+      hash: md5
+      md5: 104ed1258d6dac780a57573fd22e4cc4
+      size: 10709
+    - path: src/models/train_content_based.py
+      hash: md5
+      md5: 4a3d3a7560399ffa5ea20fba0cda2e43
+      size: 6833
+    outs:
+    - path: models/personalized/content_based_model.json
+      hash: md5
+      md5: 4d0605c77e6aa6e018a45f5d148d4c2d
+      size: 606
+    - path: models/personalized/content_based_model.pkl
+      hash: md5
+      md5: b95f9d2302c7f74e6b614b60e205f254
+      size: 50817362
+    - path: reports/personalized/content_based_train_report.md
+      hash: md5
+      md5: 86c17b05078ab46582399edd897dda30
+      size: 391
+  evaluate_models:
+    cmd: uv run python src/models/evaluate.py --hybrid-alphas 0.5 0.7 0.8 0.9
+    deps:
+    - path: data/split/test.parquet
+      hash: md5
+      md5: 4e72924e11d21573e29d32b327f65bbe
+      size: 2987511
+    - path: data/split/train.parquet
+      hash: md5
+      md5: 177b6c37c1c4e70d3a528ddc937d9f5b
+      size: 7727854
+    - path: models/baseline/most_popular_items.parquet
+      hash: md5
+      md5: 301c65fd6397696cb5fcd5cc2513aa8b
+      size: 85955
+    - path: models/personalized/svd_model.pkl
+      hash: md5
+      md5: f754d7056370cbb158d9039d67406bc8
+      size: 25660914
+    - path: src/models/evaluate.py
+      hash: md5
+      md5: c6ed161f90c2e69499f48c80947e3939
+      size: 21487
+    outs:
+    - path: reports/evaluation/evaluation_report.md
+      hash: md5
+      md5: 5ab2c0f70c558710384c5a21bc1a7bce
+      size: 407
+    - path: reports/evaluation/evaluation_summary.json
+      hash: md5
+      md5: 0a0b88a30764d038bf3010375d24802f
+      size: 559
+  final_benchmark:
+    cmd: uv run python src/models/final_benchmark.py
+    deps:
+    - path: configs/data.yaml
+      hash: md5
+      md5: c174e0ae68d2c03cbe3bb82ad5825979
+      size: 248
+    - path: configs/evaluation.yaml
+      hash: md5
+      md5: 825a4e886a1d365c65d49edb40ac47a0
+      size: 211
+    - path: configs/model.yaml
+      hash: md5
+      md5: 1b46d6942bf2b23a6208643d19e2efad
+      size: 457
+    - path: data/split/test.parquet
+      hash: md5
+      md5: 4e72924e11d21573e29d32b327f65bbe
+      size: 2987511
+    - path: data/split/train.parquet
+      hash: md5
+      md5: 177b6c37c1c4e70d3a528ddc937d9f5b
+      size: 7727854
+    - path: models/personalized/bpr_model.pkl
+      hash: md5
+      md5: b172b0c46afe7d157b2398052153bbbf
+      size: 4769780
+    - path: models/personalized/content_based_model.pkl
+      hash: md5
+      md5: b95f9d2302c7f74e6b614b60e205f254
+      size: 50817362
+    - path: models/personalized/svd_model.pkl
+      hash: md5
+      md5: f754d7056370cbb158d9039d67406bc8
+      size: 25660914
+    - path: reports/baseline/baseline_report.md
+      hash: md5
+      md5: 51980995a4df7d90d6b83995b25fef92
+      size: 911
+    - path: src/models/bpr.py
+      hash: md5
+      md5: 2a82c8d21af74c27574703eab3e9b9a7
+      size: 20203
+    - path: src/models/content_based.py
+      hash: md5
+      md5: 104ed1258d6dac780a57573fd22e4cc4
+      size: 10709
+    - path: src/models/evaluate.py
+      hash: md5
+      md5: c6ed161f90c2e69499f48c80947e3939
+      size: 21487
+    - path: src/models/final_benchmark.py
+      hash: md5
+      md5: 5db671b4516f40a46b98626cb375f668
+      size: 6510
+    outs:
+    - path: reports/evaluation/final_comparison.json
+      hash: md5
+      md5: 4ee236981fc1daccdb6783cabd1f2632
+      size: 786
+    - path: reports/evaluation/final_comparison.md
+      hash: md5
+      md5: 55bb77306250ebf98dbd2006e5836bef
+      size: 519

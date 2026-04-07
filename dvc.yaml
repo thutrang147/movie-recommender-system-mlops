@@ -61,6 +61,18 @@ stages:
       - models/personalized/bpr_model.pkl
       - models/personalized/bpr_model.json
 
+  content_based_train:
+    cmd: uv run python src/models/train_content_based.py
+    deps:
+      - src/models/train_content_based.py
+      - src/models/content_based.py
+      - data/split/train.parquet
+      - data/processed/movies_preprocessed.parquet
+    outs:
+      - models/personalized/content_based_model.pkl
+      - models/personalized/content_based_model.json
+      - reports/personalized/content_based_train_report.md
+
   evaluate_models:
     cmd: uv run python src/models/evaluate.py --hybrid-alphas 0.5 0.7 0.8 0.9
     deps:
@@ -70,7 +82,8 @@ stages:
       - models/baseline/most_popular_items.parquet
       - models/personalized/svd_model.pkl
     outs:
-      - reports/evaluation/
+      - reports/evaluation/evaluation_report.md
+      - reports/evaluation/evaluation_summary.json
 
   final_benchmark:
     cmd: uv run python src/models/final_benchmark.py

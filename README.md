@@ -17,14 +17,13 @@ An MLOps-oriented MovieLens recommender system with data versioning, model train
 
 ## Key Links
 
-- Project milestones and roadmap: [docs/milestones.md](docs/milestones.md)
 - Serving app: [src/serving/app.py](src/serving/app.py)
 - Monitoring: [src/monitoring/report.py](src/monitoring/report.py)
 - Continuous training: [src/pipeline/retrain_pipeline.py](src/pipeline/retrain_pipeline.py)
 
 ## Quick Start
 
-Install dependencies, pull shared artifacts (if available), and run tests:
+Install dependencies, pull shared artifacts, and run tests:
 ```bash
 uv sync
 uv run dvc pull
@@ -39,7 +38,6 @@ If you need to rebuild from raw data end-to-end:
 uv sync
 uv run python src/data/load_data.py
 uv run python src/data/validate_data.py --save-report
-uv run python src/data/ingest.py
 uv run python src/data/preprocess.py
 uv run python src/data/split.py
 uv run python src/models/baseline.py
@@ -57,12 +55,37 @@ uv run pytest -q
 data/raw/*.dat
   -> load_data.py
   -> validate_data.py
-  -> ingest.py
   -> preprocess.py
   -> split.py
   -> baseline.py / train.py / train_bpr.py / train_content_based.py
   -> evaluate.py / final_benchmark.py / log_mlflow_benchmark.py
   -> dvc add / dvc push
+```
+
+## DVC Workflow
+
+Use DVC to sync shared data/model artifacts.
+
+Pull tracked artifacts from remote:
+
+```bash
+uv run dvc pull
+```
+
+After rebuilding artifacts locally, update DVC metadata and upload:
+
+```bash
+uv run dvc repro
+git add dvc.yaml dvc.lock
+git commit -m "chore: update dvc pipeline and artifacts"
+uv run dvc push
+```
+
+Check configured remotes:
+
+```bash
+uv run dvc remote list
+uv run dvc config --list
 ```
 
 ## Common Commands
