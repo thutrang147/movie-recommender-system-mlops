@@ -4,42 +4,77 @@ An MLOps-oriented MovieLens recommender system with data versioning, model train
 
 ## What This Repo Does
 
-- Builds a recommendation pipeline from raw MovieLens data.
-- Trains and evaluates multiple models: popularity baseline, SVD, NumPy BPR, and content-based TF-IDF.
-- Serves recommendations through FastAPI with registry-based model loading.
-- Includes request monitoring, drift checks, and a retraining pipeline with promotion and rollback logic.
+- Builds a recommendation pipeline from MovieLens raw data.
+- Trains and evaluates Baseline, SVD, BPR, and Content-based models.
+- Serves recommendations with FastAPI.
+- Supports monitoring, drift checks, retraining, promotion, and rollback.
 
-## Main Artifacts
+## Prerequisites
 
-- Data: `data/interim/`, `data/processed/`, `data/split/`
-- Models: `models/baseline/`, `models/personalized/`
-- Reports: `reports/`
+- macOS/Linux
+- Python 3.10.x (required: `>=3.10,<3.11`)
+- `uv` installed
+- Git
+- Optional: Docker Desktop
 
-## Key Links
+## 1) Clone And Setup
 
-- Project milestones and roadmap: [docs/milestones.md](docs/milestones.md)
-- Serving app: [src/serving/app.py](src/serving/app.py)
-- Monitoring: [src/monitoring/report.py](src/monitoring/report.py)
-- Continuous training: [src/pipeline/retrain_pipeline.py](src/pipeline/retrain_pipeline.py)
-
-## Quick Start
-
-Install dependencies, pull shared artifacts (if available), and run tests:
 ```bash
+git clone <your-repo-url>
+cd <repo-folder>
 uv sync
-uv run dvc pull
+```
+
+Sanity check:
+
+```bash
 uv run pytest -q
 ```
 
-## Full Local Rebuild
+Expected: tests pass.
 
-If you need to rebuild from raw data end-to-end:
+## 2) Configure DVC Access (For Path A)
+
+If your team uses Google Drive as DVC remote, configure credentials once on your machine.
 
 ```bash
-uv sync
+uv run dvc remote list
+uv run dvc config --list
+uv run dvc remote modify --local gdrive_remote gdrive_client_id "<YOUR_CLIENT_ID>"
+uv run dvc remote modify --local gdrive_remote gdrive_client_secret "<YOUR_CLIENT_SECRET>"
+```
+
+Notes:
+
+- `--local` stores credentials in `.dvc/config.local` (git-ignored).
+- Do not commit or share client secrets in chat/commit history.
+
+## 3) Choose One Run Path
+
+### Path A (Recommended): Run fast with DVC artifacts
+
+Use this path if you want the project running quickly with shared tracked outputs.
+
+```bash
+uv run dvc pull
+uv run pytest -q
+uv run python src/models/final_benchmark.py
+```
+
+If `uv run dvc pull` fails with missing remote objects (`missing-files`), switch to Path B and rebuild locally.
+
+Expected outputs:
+
+- `models/personalized/*.pkl`
+- `reports/evaluation/final_comparison.md`
+
+### Path B: Full local rebuild from raw data
+
+Use this path if you want to rebuild everything end-to-end yourself.
+
+```bash
 uv run python src/data/load_data.py
 uv run python src/data/validate_data.py --save-report
-uv run python src/data/ingest.py
 uv run python src/data/preprocess.py
 uv run python src/data/split.py
 uv run python src/models/baseline.py
@@ -51,132 +86,133 @@ uv run python src/models/final_benchmark.py
 uv run pytest -q
 ```
 
-## End-to-End Flow
+Expected outputs:
 
-```text
-data/raw/*.dat
-  -> load_data.py
-  -> validate_data.py
-  -> ingest.py
-  -> preprocess.py
-  -> split.py
-  -> baseline.py / train.py / train_bpr.py / train_content_based.py
-  -> evaluate.py / final_benchmark.py / log_mlflow_benchmark.py
-  -> dvc add / dvc push
-```
+- `data/split/train.parquet`, `data/split/val.parquet`, `data/split/test.parquet`
+- `models/baseline/most_popular_items.parquet`
+- `models/personalized/svd_model.pkl`
+- `models/personalized/bpr_model.pkl`
+- `models/personalized/content_based_model.pkl`
+- `reports/evaluation/final_comparison.md`
 
-## Common Commands
+## 4) Run API Locally
 
-Train and evaluate:
+Before starting API, make sure model artifacts exist.
 
-```bash
-uv run python src/models/train.py
-uv run python src/models/train_bpr.py
-uv run python src/models/train_content_based.py
-uv run python src/models/evaluate.py
-uv run python src/models/final_benchmark.py
-```
+1) Ensure artifacts are available (choose one):
 
-Run serving locally:
+- Path A: `uv run dvc pull`
+- Path B: finish full local rebuild steps in Section 3
+
+2) Start API:
 
 ```bash
 make api-run
+```
+
+Open interactive API docs in browser:
+
+- Swagger UI: `http://127.0.0.1:8000/docs`
+- ReDoc: `http://127.0.0.1:8000/redoc`
+- OpenAPI JSON: `http://127.0.0.1:8000/openapi.json`
+
+In another terminal:
+
+```bash
 curl http://127.0.0.1:8000/health
-curl "http://127.0.0.1:8000/recommend/1?top_k=6"
+curl "http://127.0.0.1:8000/recommend/1?top_k=10"
+curl "http://127.0.0.1:8000/recommend/999999?top_k=10"
 ```
 
-Run batch inference:
+Expected:
 
-```bash
-make api-batch
-```
+- `/health` returns status and active model info.
+- `/recommend/{user_id}` returns recommendation list.
 
-Run retraining:
+## 5) Monitoring And Retraining
 
-```bash
-make retrain-weekly
-make retrain-trigger
-make retrain-rollback
-```
-
-## Evaluation Summary
-
-The frozen benchmark compares Baseline, SVD, BPR, and Content-based models using the same test split and metrics protocol.
-
-- Final benchmark report: `reports/evaluation/final_comparison.md`
-- Final benchmark JSON: `reports/evaluation/final_comparison.json`
-
-## Serving
-
-The API uses a lightweight registry at `models/registry.json`.
-
-- `GET /health`
-- `GET /recommend/{user_id}`
-- Popularity fallback is used for unknown users.
-
-## Monitoring
+Generate monitoring report:
 
 ```bash
 make monitoring-report
 ```
 
-Artifacts:
-
-- `reports/monitoring/request_logs.jsonl`
-- `reports/monitoring/monitoring_report.md`
-- `reports/monitoring/monitoring_report.json`
-
-Thresholds:
-
-- `configs/monitoring.yaml`
-
-## Retraining Pipeline
-
-Continuous training is implemented as a retraining pipeline with promotion and rollback.
-
-### Retraining modes
-
-- Schedule-based retraining: runs on a weekly cadence.
-- Trigger-based retraining: runs when drift exceeds threshold.
-
-### Pipeline flow
-
-1. Load new feedback or monitoring context.
-2. Validate schema.
-3. Update the training set.
-4. Train a candidate model.
-5. Evaluate candidate vs active model on a frozen evaluation split.
-6. Apply the promotion rule.
-7. Promote the candidate or keep the current model.
-
-### Promotion rule
-
-- Promote if `Recall@10` improves.
-- If `Recall@10` ties, promote only if `Coverage` improves.
-
-### Rollback strategy
-
-- The current active model is snapshotted before promotion.
-- If a promoted model fails or degrades, rollback restores the previous active checkpoint.
-
-### Automation
+Run retraining flows:
 
 ```bash
 make retrain-weekly
 make retrain-trigger
 make retrain-rollback
-./scripts/run_weekly_retrain.sh
 ```
 
-- Workflow: [.github/workflows/retrain.yml](.github/workflows/retrain.yml)
-- Pipeline: [src/pipeline/retrain_pipeline.py](src/pipeline/retrain_pipeline.py)
-- Config: [configs/retraining.yaml](configs/retraining.yaml)
-- Reports: `reports/retraining/retrain_report.md` and `reports/retraining/retrain_report.json`
+Expected outputs:
 
-## Reproducibility
+- `reports/monitoring/monitoring_report.md`
+- `reports/retraining/retrain_report.md`
 
-- Config-first workflow in `configs/`
-- DVC-managed data artifacts
-- MLflow experiment logging
-- CI smoke compile + pytest checks
-- Generated reports in `reports/`
+## 6) Docker (Optional)
+
+```bash
+docker build -t movielens-api .
+docker run --rm -p 8000:8000 movielens-api
+```
+
+In another terminal:
+
+```bash
+curl http://127.0.0.1:8000/health
+curl "http://127.0.0.1:8000/recommend/1?top_k=10"
+```
+
+Note: first Docker build can be slow due to dependency download.
+
+## DVC Workflow (Team Use)
+
+Pull shared outputs:
+
+```bash
+uv run dvc pull
+```
+
+If you changed tracked pipeline outputs:
+
+```bash
+uv run dvc repro
+uv run dvc push
+git add dvc.yaml dvc.lock
+git commit -m "chore: update dvc pipeline metadata"
+```
+
+Check remote/config:
+
+```bash
+uv run dvc remote list
+uv run dvc config --list
+```
+
+## Troubleshooting
+
+- `dvc: command not found`: use `uv run dvc ...` instead of `dvc ...`.
+- `Unable to acquire lock` on `dvc pull`: another DVC process is still running. Stop old DVC process and rerun pull.
+- `Missing registry file: models/registry.json` when running API: pull latest Git changes (registry is versioned), then rerun `make api-run`.
+- Docker API fails with missing package: rebuild image after pulling latest `Dockerfile`.
+- `dvc pull` says missing on remote: ensure latest `dvc.lock` is pushed to Git and artifacts were pushed with `uv run dvc push`.
+
+## Success Criteria (Fresh Clone Test)
+
+Quick smoke test (recommended for first run):
+
+1. `uv sync`
+2. DVC access configured (if using Path A)
+3. `uv run dvc pull` (or use Path B if remote is incomplete)
+4. `uv run pytest -q`
+5. `make api-run` + successful `/health` and `/recommend`
+
+Full workflow validation:
+
+1. `uv sync`
+2. `uv run dvc pull`
+3. `uv run pytest -q`
+4. `make api-run` + successful `/health` and `/recommend`
+5. `make monitoring-report`
+6. `make retrain-trigger`
