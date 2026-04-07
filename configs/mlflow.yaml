@@ -1,0 +1,4 @@
+tracking_uri: file:./mlruns
+experiment_name: movie-recommender-final-benchmark
+run_name_prefix: week11
+artifact_path: reports/evaluation/final_comparison.md

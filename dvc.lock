@@ -36,3 +36,55 @@ stages:
       hash: md5
       md5: 1489d8cc2fcc240058e88f255c8c97f7
       size: 71980
+  personalized_train:
+    cmd: uv run python src/models/train.py
+    deps:
+    - path: data/split/train.parquet
+      hash: md5
+      md5: edb6683ac377b3dcb4d9db268e1ede1e
+      size: 7733674
+    - path: data/split/val.parquet
+      hash: md5
+      md5: ecb8cc5b411de77ea090e65d341289f2
+      size: 1487484
+    - path: src/models/train.py
+      hash: md5
+      md5: 2124b9401c9c747b0ec0f2365ece4d2d
+      size: 18473
+    outs:
+    - path: models/personalized/svd_model.json
+      hash: md5
+      md5: 0927bcfe54e23ac27eb856781934ed8c
+      size: 5741
+    - path: models/personalized/svd_model.pkl
+      hash: md5
+      md5: f754d7056370cbb158d9039d67406bc8
+      size: 25660914
+  personalized_bpr_train:
+    cmd: uv run python src/models/train_bpr.py
+    deps:
+    - path: data/split/train.parquet
+      hash: md5
+      md5: edb6683ac377b3dcb4d9db268e1ede1e
+      size: 7733674
+    - path: data/split/val.parquet
+      hash: md5
+      md5: ecb8cc5b411de77ea090e65d341289f2
+      size: 1487484
+    - path: src/models/bpr.py
+      hash: md5
+      md5: 2a82c8d21af74c27574703eab3e9b9a7
+      size: 20203
+    - path: src/models/train_bpr.py
+      hash: md5
+      md5: fa1579f717887d8e81f1966ec00758aa
+      size: 7649
+    outs:
+    - path: models/personalized/bpr_model.json
+      hash: md5
+      md5: 63dd0f1a5a9234699a944091ec9057a5
+      size: 758
+    - path: models/personalized/bpr_model.pkl
+      hash: md5
+      md5: b172b0c46afe7d157b2398052153bbbf
+      size: 4769780

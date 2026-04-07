@@ -1,0 +1,18 @@
+{
+  "strategy": "schedule",
+  "status": "rollback_completed",
+  "trigger_reason": "manual rollback flag provided",
+  "decision": "rollback",
+  "decision_reason": "Active model switched to rollback snapshot alias.",
+  "current_metrics": {
+    "recall_at_k": 0.0,
+    "coverage": 0.0
+  },
+  "candidate_metrics": {
+    "recall_at_k": 0.0,
+    "coverage": 0.0
+  },
+  "registry_path": "models/registry.json",
+  "candidate_artifact": "N/A",
+  "rollback_alias": "models/personalized/active_model_prev.pkl"
+}

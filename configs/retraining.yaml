@@ -1,0 +1,15 @@
+strategy:
+  default: schedule
+
+trigger:
+  drift_threshold: 0.20
+  monitoring_report_json: reports/monitoring/monitoring_report.json
+
+paths:
+  registry_path: models/registry.json
+  retrain_train_split: data/split/train_retrain_latest.parquet
+  candidate_dir: models/personalized/candidates
+  archive_dir: models/personalized/archive
+  rollback_alias_path: models/personalized/active_model_prev.pkl
+  report_markdown: reports/retraining/retrain_report.md
+  report_json: reports/retraining/retrain_report.json

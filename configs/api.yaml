@@ -1,0 +1,6 @@
+serving:
+  host: 0.0.0.0
+  port: 8000
+  default_top_k: 10
+  registry_path: models/registry.json
+  request_log_path: reports/monitoring/request_logs.jsonl

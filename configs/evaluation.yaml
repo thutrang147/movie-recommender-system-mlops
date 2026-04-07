@@ -1,0 +1,9 @@
+freeze_test_split: true
+
+evaluation:
+  top_k: 10
+  relevance_threshold: 4.0
+
+outputs:
+  final_comparison: reports/evaluation/final_comparison.md
+  final_comparison_json: reports/evaluation/final_comparison.json

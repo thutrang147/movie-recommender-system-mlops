@@ -14,6 +14,11 @@ data/interim/*.csv
 *.pt
 *.h5
 mlruns/
+/models/
+
+# DVC-generated pipeline artifacts
+data/processed/
+data/split/
 
 # OS-specific
 .DS_Store
@@ -22,3 +27,7 @@ mlruns/
 
 # Large archives
 *.zip
+
+# Serving/batch generated outputs
+reports/evaluation/batch_recommendations.jsonl
+reports/monitoring/request_logs.jsonl

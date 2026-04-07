@@ -1,0 +1,7 @@
+seed: 42
+paths:
+  train_split: data/split/train.parquet
+  val_split: data/split/val.parquet
+  test_split: data/split/test.parquet
+  movies_processed: data/processed/movies_preprocessed.parquet
+  baseline_report: reports/baseline/baseline_report.md

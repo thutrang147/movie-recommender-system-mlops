@@ -1,0 +1,56 @@
+name: Retraining Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      strategy:
+        description: "Retraining strategy"
+        required: false
+        default: "schedule"
+        type: choice
+        options:
+          - schedule
+          - trigger
+      force:
+        description: "Force retraining when trigger is not met"
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: "0 3 * * 1"
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run retraining pipeline
+        run: |
+          STRATEGY="${{ github.event.inputs.strategy || 'schedule' }}"
+          FORCE_FLAG=""
+          if [ "${{ github.event.inputs.force || 'false' }}" = "true" ]; then
+            FORCE_FLAG="--force"
+          fi
+          uv run python src/pipeline/retrain_pipeline.py --strategy "$STRATEGY" $FORCE_FLAG
+
+      - name: Upload retraining reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: retraining-reports
+          path: |
+            reports/retraining/retrain_report.md
+            reports/retraining/retrain_report.json

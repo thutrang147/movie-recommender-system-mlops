@@ -1,4 +1,97 @@
 stages:
+  preprocess_data:
+    cmd: uv run python src/data/preprocess.py --min-user-interactions 5 --min-movie-interactions 5
+    deps:
+      - src/data/preprocess.py
+      - src/data/common.py
+      - src/data/load_data.py
+      - data/interim/ratings_cleaned.csv
+      - data/interim/movies_cleaned.csv
+      - data/interim/users_cleaned.csv
+    outs:
+      - data/processed/ratings_preprocessed.parquet
+      - data/processed/movies_preprocessed.parquet
+      - data/processed/users_preprocessed.parquet
+      - data/processed/user_mapping.parquet
+      - data/processed/movie_mapping.parquet
+      - data/processed/preprocess_summary.json
+      - reports/preprocessing/preprocess_report.md
+
+  split_data:
+    cmd: uv run python src/data/split.py
+    deps:
+      - src/data/split.py
+      - data/processed/ratings_preprocessed.parquet
+    outs:
+      - data/split/train.parquet
+      - data/split/val.parquet
+      - data/split/test.parquet
+      - data/split/split_summary.json
+      - reports/splitting/split_report.md
+
+  baseline_train:
+    cmd: uv run python src/models/baseline.py
+    deps:
+      - src/models/baseline.py
+      - data/split/train.parquet
+      - data/split/val.parquet
+      - data/split/test.parquet
+    outs:
+      - models/baseline/
+      - reports/baseline/
+
+  personalized_train:
+    cmd: uv run python src/models/train.py
+    deps:
+      - src/models/train.py
+      - data/split/train.parquet
+      - data/split/val.parquet
+    outs:
+      - models/personalized/svd_model.pkl
+      - models/personalized/svd_model.json
+
+  personalized_bpr_train:
+    cmd: uv run python src/models/train_bpr.py
+    deps:
+      - src/models/train_bpr.py
+      - src/models/bpr.py
+      - data/split/train.parquet
+      - data/split/val.parquet
+    outs:
+      - models/personalized/bpr_model.pkl
+      - models/personalized/bpr_model.json
+
+  evaluate_models:
+    cmd: uv run python src/models/evaluate.py --hybrid-alphas 0.5 0.7 0.8 0.9
+    deps:
+      - src/models/evaluate.py
+      - data/split/train.parquet
+      - data/split/test.parquet
+      - models/baseline/most_popular_items.parquet
+      - models/personalized/svd_model.pkl
+    outs:
+      - reports/evaluation/
+
+  final_benchmark:
+    cmd: uv run python src/models/final_benchmark.py
+    deps:
+      - src/models/final_benchmark.py
+      - src/models/evaluate.py
+      - src/models/content_based.py
+      - src/models/bpr.py
+      - reports/baseline/baseline_report.md
+      - models/personalized/svd_model.pkl
+      - models/personalized/bpr_model.pkl
+      - models/personalized/content_based_model.pkl
+      - data/split/train.parquet
+      - data/split/test.parquet
+      - configs/data.yaml
+      - configs/model.yaml
+      - configs/evaluation.yaml
+    outs:
+      - reports/evaluation/final_comparison.md
+      - reports/evaluation/final_comparison.json
+
   ingest_processed:
     cmd: uv run python src/data/ingest.py
     deps:

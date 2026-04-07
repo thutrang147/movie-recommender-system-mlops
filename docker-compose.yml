@@ -1,0 +1,13 @@
+services:
+  movielens-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: movielens-api:latest
+    container_name: movielens-api
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_REGISTRY_PATH=models/registry.json
+      - APP_DEFAULT_TOP_K=10
+    command: ["uvicorn", "src.serving.app:app", "--host", "0.0.0.0", "--port", "8000"]
