@@ -1,6 +1,6 @@
 # Data Quality Report
 
-- Generated at (UTC): 2026-03-15 11:33:56
+- Generated at (UTC): 2026-04-07 08:16:04
 - Data source: cleaned CSV files from data/interim
 
 ## Dataset Shapes
