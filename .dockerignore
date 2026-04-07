@@ -1,0 +1,25 @@
+.git
+.gitignore
+.venv
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+notebooks/
+mlruns/
+reports/
+docs/
+tests/
+
+# Large data folders not needed for API serving image
+data/raw/
+data/interim/
+data/processed/
+data/split/
+
+# Local system files
+.DS_Store

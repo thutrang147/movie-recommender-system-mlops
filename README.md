@@ -1,13 +1,13 @@
 # Movie Recommender System (MLOps)
 
-MovieLens-based recommender system with data versioning, model training, serving, monitoring, and continuous retraining.
+An MLOps-oriented MovieLens recommender system with data versioning, model training, API serving, monitoring, and retraining workflows.
 
 ## What This Repo Does
 
 - Builds a recommendation pipeline from raw MovieLens data.
 - Trains and evaluates multiple models: popularity baseline, SVD, NumPy BPR, and content-based TF-IDF.
 - Serves recommendations through FastAPI with registry-based model loading.
-- Monitors requests and drift, then retrains with promote/rollback control.
+- Includes request monitoring, drift checks, and a retraining pipeline with promotion and rollback logic.
 
 ## Main Artifacts
 
@@ -24,26 +24,22 @@ MovieLens-based recommender system with data versioning, model training, serving
 
 ## Quick Start
 
-Install dependencies and run tests:
-```bash
-uv sync
-uv run pytest -q
-```
-
-If shared DVC artifacts are available:
-
+Install dependencies, pull shared artifacts (if available), and run tests:
 ```bash
 uv sync
 uv run dvc pull
 uv run pytest -q
 ```
 
-If you need to rebuild the local pipeline from raw data:
+## Full Local Rebuild
+
+If you need to rebuild from raw data end-to-end:
 
 ```bash
 uv sync
 uv run python src/data/load_data.py
 uv run python src/data/validate_data.py --save-report
+uv run python src/data/ingest.py
 uv run python src/data/preprocess.py
 uv run python src/data/split.py
 uv run python src/models/baseline.py
@@ -52,7 +48,6 @@ uv run python src/models/train_bpr.py
 uv run python src/models/train_content_based.py
 uv run python src/models/evaluate.py
 uv run python src/models/final_benchmark.py
-uv run python src/data/ingest.py
 uv run pytest -q
 ```
 
@@ -62,11 +57,11 @@ uv run pytest -q
 data/raw/*.dat
   -> load_data.py
   -> validate_data.py
+  -> ingest.py
   -> preprocess.py
   -> split.py
   -> baseline.py / train.py / train_bpr.py / train_content_based.py
   -> evaluate.py / final_benchmark.py / log_mlflow_benchmark.py
-  -> ingest.py
   -> dvc add / dvc push
 ```
 
@@ -94,12 +89,6 @@ Run batch inference:
 
 ```bash
 make api-batch
-```
-
-Generate monitoring report:
-
-```bash
-make monitoring-report
 ```
 
 Run retraining:
@@ -156,7 +145,7 @@ Continuous training is implemented as a retraining pipeline with promotion and r
 2. Validate schema.
 3. Update the training set.
 4. Train a candidate model.
-5. Evaluate candidate vs active model on the frozen test split.
+5. Evaluate candidate vs active model on a frozen evaluation split.
 6. Apply the promotion rule.
 7. Promote the candidate or keep the current model.
 
