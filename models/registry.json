@@ -1,0 +1,23 @@
+{
+  "active_model": {
+    "name": "active_model_prev",
+    "version": "rollback-20260406T085421Z",
+    "artifact_path": "models/personalized/active_model_prev.pkl"
+  },
+  "fallback": {
+    "type": "popularity",
+    "artifact_path": "models/baseline/most_popular_items.parquet"
+  },
+  "metadata": {
+    "frozen_test_split": "data/split/test.parquet",
+    "updated_at": "2026-04-06",
+    "rollback_at": "2026-04-06",
+    "rollback_reason": "manual rollback after degraded or failed promoted model",
+    "rolled_back_from": {
+      "name": "bpr",
+      "version": "v1",
+      "artifact_path": "models/personalized/bpr_model.pkl"
+    },
+    "rollback_alias": "models/personalized/active_model_prev.pkl"
+  }
+}
