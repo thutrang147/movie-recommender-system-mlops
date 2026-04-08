@@ -227,6 +227,28 @@ Cleanup:
 kubectl delete -f k8s/
 ```
 
+## 8) Streamlit UI (Model Comparison)
+
+You can run a lightweight UI to compare BPR and Content-based recommendations.
+
+Prerequisites:
+
+- Model bundles exist at `models/personalized/bpr_model.pkl` and `models/personalized/content_based_model.pkl`
+
+Run UI:
+
+```bash
+make ui-run
+```
+
+Then open the local Streamlit URL shown in terminal (usually `http://localhost:8501`).
+
+## 9) CI/CD Overview
+
+- CI: `.github/workflows/ci.yml` runs dependency install, smoke compile checks, and unit tests.
+- CD: `.github/workflows/cd.yml` builds and publishes API Docker image to GHCR on push to `main` (or manually via workflow dispatch).
+- Retraining automation: `.github/workflows/retrain.yml` for retrain-related workflow steps.
+
 ## DVC Workflow (Team Use)
 
 Pull shared outputs:
