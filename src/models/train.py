@@ -438,6 +438,44 @@ def run_training(
     return summary
 
 
+def recommend_with_bundle(bundle: Dict[str, object], user_id: int, top_k: int) -> List[tuple[int, float]]:
+    """Generate SVD recommendations directly from a serialized bundle."""
+    model: SVD = bundle["model"]  # type: ignore[assignment]
+    item_ids: List[int] = [int(item_id) for item_id in bundle["item_ids"]]
+    train_user_seen_items: Dict[int, set[int]] = bundle["train_user_seen_items"]  # type: ignore[assignment]
+    item_popularity_order: List[int] = [int(item_id) for item_id in bundle.get("item_popularity_order", [])]
+
+    if top_k <= 0:
+        return []
+
+    # Cold-start fallback for unseen users
+    if user_id not in train_user_seen_items:
+        fallback = item_popularity_order[:top_k]
+        return [(movie_id, float(top_k - rank)) for rank, movie_id in enumerate(fallback)]
+
+    seen_items = train_user_seen_items.get(user_id, set())
+    rows = []
+
+    for movie_id in item_ids:
+        if movie_id in seen_items:
+            continue
+        try:
+            estimate = float(model.predict(str(user_id), str(movie_id)).est)
+            rows.append({"movie_id": movie_id, "score": estimate})
+        except Exception:
+            # Skip items that can't be predicted
+            continue
+
+    if not rows:
+        # Return popularity-based fallback if no predictions available
+        fallback = [item_id for item_id in item_popularity_order if item_id not in seen_items][:top_k]
+        return [(movie_id, float(top_k - rank)) for rank, movie_id in enumerate(fallback)]
+
+    recommendations = pd.DataFrame(rows)
+    recommendations = recommendations.sort_values(["score", "movie_id"], ascending=[False, True]).head(top_k).copy()
+    return [(int(row["movie_id"]), float(row["score"])) for _, row in recommendations.iterrows()]
+
+
 def main() -> Dict[str, object]:
     """CLI entrypoint for training the personalized model."""
     parser = argparse.ArgumentParser(description="Train an SVD personalized recommender on the split data.")

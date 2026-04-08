@@ -1,4 +1,4 @@
-"""Streamlit UI for movie recommendations using BPR and Content-Based models."""
+"""Streamlit UI for movie recommendations using BPR, Content-Based, and SVD models."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ sys.path.insert(0, str(project_root))
 
 from src.models.bpr import recommend_with_bundle as recommend_with_bpr
 from src.models.content_based import recommend_with_bundle as recommend_with_content
+from src.models.train import recommend_with_bundle as recommend_with_svd
 
 
 @st.cache_resource
@@ -36,6 +37,18 @@ def load_content_based_model(model_path: Path) -> Dict:
     """Load Content-Based model bundle from pickle file."""
     if not model_path.exists():
         st.error(f"Content-Based model not found at {model_path}")
+        return {}
+    
+    with open(model_path, "rb") as file:
+        bundle = pickle.load(file)
+    return bundle
+
+
+@st.cache_resource
+def load_svd_model(model_path: Path) -> Dict:
+    """Load SVD model bundle from pickle file."""
+    if not model_path.exists():
+        st.error(f"SVD model not found at {model_path}")
         return {}
     
     with open(model_path, "rb") as file:
@@ -152,15 +165,39 @@ def get_content_based_recommendations(
         return [], [], "Content-Based (Error)"
 
 
+def get_svd_recommendations(
+    user_id: int,
+    top_k: int,
+    svd_bundle: Dict,
+) -> Tuple[List[int], List[float], str]:
+    """Get recommendations from SVD model."""
+    try:
+        recommendations_with_scores = recommend_with_svd(
+            bundle=svd_bundle,
+            user_id=user_id,
+            top_k=top_k,
+        )
+        if not recommendations_with_scores:
+            return [], [], "SVD"
+        
+        recommendations = [movie_id for movie_id, _ in recommendations_with_scores]
+        scores = [score for _, score in recommendations_with_scores]
+        return recommendations, scores, "SVD"
+    except Exception as e:
+        st.error(f"SVD Model Error: {str(e)}")
+        return [], [], "SVD (Error)"
+
+
 def compare_models(
     user_id: int,
     top_k: int,
     bpr_bundle: Dict,
     content_bundle: Dict,
+    svd_bundle: Dict,
     movies_df: pd.DataFrame,
 ) -> None:
-    """Compare recommendations from both models side by side."""
-    col1, col2 = st.columns(2)
+    """Compare recommendations from all three models side by side."""
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         st.subheader("🤖 BPR Model")
@@ -179,6 +216,15 @@ def compare_models(
             st.dataframe(content_df, use_container_width=True)
         else:
             st.warning("No recommendations from Content-Based model")
+    
+    with col3:
+        st.subheader("🎯 SVD Model")
+        svd_recs, svd_scores, _ = get_svd_recommendations(user_id, top_k, svd_bundle)
+        if svd_recs:
+            svd_df = format_recommendations(svd_recs, svd_scores, movies_df, "SVD")
+            st.dataframe(svd_df, use_container_width=True)
+        else:
+            st.warning("No recommendations from SVD model")
 
 
 def show_ensemble_recommendations(
@@ -186,17 +232,21 @@ def show_ensemble_recommendations(
     top_k: int,
     bpr_bundle: Dict,
     content_bundle: Dict,
+    svd_bundle: Dict,
     movies_df: pd.DataFrame,
-    ensemble_weight_bpr: float = 0.5,
+    ensemble_weight_bpr: float = 0.33,
+    ensemble_weight_content: float = 0.33,
+    ensemble_weight_svd: float = 0.34,
 ) -> None:
-    """Show ensemble recommendations combining both models."""
+    """Show ensemble recommendations combining all three models."""
     st.subheader("🎯 Ensemble Recommendations")
     
     bpr_recs, bpr_scores, _ = get_bpr_recommendations(user_id, top_k * 2, bpr_bundle)
     content_recs, content_scores, _ = get_content_based_recommendations(user_id, top_k * 2, content_bundle)
+    svd_recs, svd_scores, _ = get_svd_recommendations(user_id, top_k * 2, svd_bundle)
     
-    if not bpr_recs and not content_recs:
-        st.warning("No recommendations available from either model")
+    if not bpr_recs and not content_recs and not svd_recs:
+        st.warning("No recommendations available from any model")
         return
     
     # Create scoring dictionary
@@ -208,10 +258,14 @@ def show_ensemble_recommendations(
         ensemble_scores[movie_id] = ensemble_scores.get(movie_id, 0) + (score * ensemble_weight_bpr)
     
     # Add Content-Based scores
-    ensemble_weight_content = 1 - ensemble_weight_bpr
     for i, movie_id in enumerate(content_recs):
         score = content_scores[i] if i < len(content_scores) else 0
         ensemble_scores[movie_id] = ensemble_scores.get(movie_id, 0) + (score * ensemble_weight_content)
+    
+    # Add SVD scores
+    for i, movie_id in enumerate(svd_recs):
+        score = svd_scores[i] if i < len(svd_scores) else 0
+        ensemble_scores[movie_id] = ensemble_scores.get(movie_id, 0) + (score * ensemble_weight_svd)
     
     # Sort by ensemble score
     sorted_movies = sorted(ensemble_scores.items(), key=lambda x: x[1], reverse=True)
@@ -222,9 +276,9 @@ def show_ensemble_recommendations(
     st.dataframe(ensemble_df, use_container_width=True)
 
 
-def show_model_info(bpr_bundle: Dict, content_bundle: Dict) -> None:
+def show_model_info(bpr_bundle: Dict, content_bundle: Dict, svd_bundle: Dict) -> None:
     """Display model information and statistics."""
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         st.subheader("📊 BPR Model Info")
@@ -243,6 +297,15 @@ def show_model_info(bpr_bundle: Dict, content_bundle: Dict) -> None:
             st.write(f"**Model Config:**")
             for key, value in config.items():
                 st.write(f"  - {key}: {value}")
+    
+    with col3:
+        st.subheader("📊 SVD Model Info")
+        if svd_bundle:
+            config = svd_bundle.get("config", {})
+            st.write(f"**Algorithm:** svd_surprise")
+            st.write(f"**Model Config:**")
+            for key, value in config.items():
+                st.write(f"  - {key}: {value}")
 
 
 def main():
@@ -255,20 +318,22 @@ def main():
     )
     
     st.title("🎬 Movie Recommender System")
-    st.write("Compare recommendations from **BPR** and **Content-Based** models")
+    st.write("Compare recommendations from **BPR**, **Content-Based**, and **SVD** models")
     
     # Load project paths
     project_root = get_project_root()
     bpr_model_path = project_root / "models" / "personalized" / "bpr_model.pkl"
     content_model_path = project_root / "models" / "personalized" / "content_based_model.pkl"
+    svd_model_path = project_root / "models" / "personalized" / "svd_model.pkl"
     
     # Load models and data
     with st.spinner("Loading models and data..."):
         bpr_bundle = load_bpr_model(bpr_model_path)
         content_bundle = load_content_based_model(content_model_path)
+        svd_bundle = load_svd_model(svd_model_path)
         movies_df = load_movies_data()
     
-    if not bpr_bundle and not content_bundle:
+    if not bpr_bundle and not content_bundle and not svd_bundle:
         st.error("❌ No models loaded. Please check model paths.")
         st.stop()
     
@@ -291,28 +356,38 @@ def main():
     
     recommendation_mode = st.sidebar.radio(
         "Recommendation Mode:",
-        ["Compare Models", "Ensemble", "BPR Only", "Content-Based Only"],
+        ["Compare Models", "Ensemble", "BPR Only", "Content-Based Only", "SVD Only"],
     )
     
     if recommendation_mode == "Ensemble":
+        st.sidebar.markdown("### Ensemble Weights")
         ensemble_weight_bpr = st.sidebar.slider(
-            "BPR Model Weight (Ensemble):",
+            "BPR Weight:",
             min_value=0.0,
             max_value=1.0,
-            value=0.5,
-            step=0.1,
+            value=0.33,
+            step=0.01,
         )
+        ensemble_weight_content = st.sidebar.slider(
+            "Content-Based Weight:",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.33,
+            step=0.01,
+        )
+        ensemble_weight_svd = 1.0 - ensemble_weight_bpr - ensemble_weight_content
+        st.sidebar.metric("SVD Weight (Auto):", f"{ensemble_weight_svd:.2f}")
     
     # Footer info
     st.sidebar.markdown("---")
     st.sidebar.subheader("📋 Model Info")
-    show_model_info(bpr_bundle, content_bundle)
+    show_model_info(bpr_bundle, content_bundle, svd_bundle)
     
     # Main content
     st.markdown("---")
     
     if recommendation_mode == "Compare Models":
-        compare_models(user_id, top_k, bpr_bundle, content_bundle, movies_df)
+        compare_models(user_id, top_k, bpr_bundle, content_bundle, svd_bundle, movies_df)
     
     elif recommendation_mode == "Ensemble":
         show_ensemble_recommendations(
@@ -320,8 +395,11 @@ def main():
             top_k,
             bpr_bundle,
             content_bundle,
+            svd_bundle,
             movies_df,
             ensemble_weight_bpr,
+            ensemble_weight_content if 'ensemble_weight_content' in locals() else (1.0 - ensemble_weight_bpr) / 2,
+            ensemble_weight_svd if 'ensemble_weight_svd' in locals() else (1.0 - ensemble_weight_bpr) / 2,
         )
     
     elif recommendation_mode == "BPR Only":
@@ -339,6 +417,15 @@ def main():
         if content_recs:
             content_df = format_recommendations(content_recs, content_scores, movies_df, "Content-Based")
             st.dataframe(content_df, use_container_width=True)
+        else:
+            st.warning("No recommendations available")
+    
+    elif recommendation_mode == "SVD Only":
+        st.subheader("🎯 SVD Model Recommendations")
+        svd_recs, svd_scores, _ = get_svd_recommendations(user_id, top_k, svd_bundle)
+        if svd_recs:
+            svd_df = format_recommendations(svd_recs, svd_scores, movies_df, "SVD")
+            st.dataframe(svd_df, use_container_width=True)
         else:
             st.warning("No recommendations available")
 
