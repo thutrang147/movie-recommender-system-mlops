@@ -166,6 +166,67 @@ curl "http://127.0.0.1:8000/recommend/1?top_k=10"
 
 Note: first Docker build can be slow due to dependency download.
 
+## 7) Kubernetes Deployment (Minimal)
+
+This project includes minimal Kubernetes manifests for deploying the recommender API service.
+
+Files:
+
+- `k8s/deployment.yaml`
+- `k8s/service.yaml`
+- `k8s/configmap.yaml`
+- `k8s/secret.example.yaml`
+
+Prerequisites:
+
+- Docker
+- `kubectl`
+- A running local cluster (`minikube`, `kind`, or `k3d`)
+
+Build image:
+
+```bash
+docker build -t movielens-api:latest .
+```
+
+If you use minikube, load image into the cluster runtime:
+
+```bash
+minikube image load movielens-api:latest
+```
+
+Apply manifests:
+
+```bash
+kubectl apply -f k8s/
+```
+
+Check status:
+
+```bash
+kubectl get pods
+kubectl get svc
+```
+
+Access API locally via port-forward:
+
+```bash
+kubectl port-forward svc/recommender-service 8000:80
+```
+
+In another terminal, test endpoints:
+
+```bash
+curl http://127.0.0.1:8000/health
+curl "http://127.0.0.1:8000/recommend/1?top_k=10"
+```
+
+Cleanup:
+
+```bash
+kubectl delete -f k8s/
+```
+
 ## DVC Workflow (Team Use)
 
 Pull shared outputs:
