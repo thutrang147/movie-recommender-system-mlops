@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: recommender-config
+data:
+  APP_REGISTRY_PATH: "models/registry.json"
+  APP_DEFAULT_TOP_K: "10"
+  APP_REQUEST_LOG_PATH: "reports/monitoring/request_logs.jsonl"
