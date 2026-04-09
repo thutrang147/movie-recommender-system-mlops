@@ -11,11 +11,15 @@ An MLOps-oriented MovieLens recommender system with data versioning, model train
 
 ## Prerequisites
 
-- macOS/Linux
+- macOS, Linux, or Windows 10/11
 - Python 3.10.x (required: `>=3.10,<3.11`)
 - `uv` installed
 - Git
 - Optional: Docker Desktop
+
+Optional tool:
+
+- `make` (optional convenience for macOS/Linux)
 
 ## 1) Clone And Setup
 
@@ -107,8 +111,10 @@ Before starting API, make sure model artifacts exist.
 2) Start API:
 
 ```bash
-make api-run
+uv run uvicorn src.serving.app:app --host 0.0.0.0 --port 8000
 ```
+
+Note: if you are on macOS/Linux and prefer Makefile shortcuts, you can also run `make api-run`.
 
 Open interactive API docs in browser:
 
@@ -134,16 +140,18 @@ Expected:
 Generate monitoring report:
 
 ```bash
-make monitoring-report
+uv run python src/monitoring/report.py
 ```
 
 Run retraining flows:
 
 ```bash
-make retrain-weekly
-make retrain-trigger
-make retrain-rollback
+uv run python src/pipeline/retrain_pipeline.py --strategy schedule
+uv run python src/pipeline/retrain_pipeline.py --strategy trigger
+uv run python src/pipeline/retrain_pipeline.py --rollback
 ```
+
+Note: macOS/Linux Makefile shortcuts are available: `make monitoring-report`, `make retrain-weekly`, `make retrain-trigger`, `make retrain-rollback`.
 
 Expected outputs:
 
@@ -238,8 +246,10 @@ Prerequisites:
 Run UI:
 
 ```bash
-make ui-run
+uv run streamlit run src/serving/ui_app.py
 ```
+
+Note: macOS/Linux shortcut: `make ui-run`.
 
 Then open the local Streamlit URL shown in terminal (usually `http://localhost:8501`).
 
@@ -277,7 +287,8 @@ uv run dvc config --list
 
 - `dvc: command not found`: use `uv run dvc ...` instead of `dvc ...`.
 - `Unable to acquire lock` on `dvc pull`: another DVC process is still running. Stop old DVC process and rerun pull.
-- `Missing registry file: models/registry.json` when running API: pull latest Git changes (registry is versioned), then rerun `make api-run`.
+- `make` not found on Windows: run direct cross-platform commands with `uv run ...` from this README (for example API: `uv run uvicorn src.serving.app:app --host 0.0.0.0 --port 8000`).
+- `Missing registry file: models/registry.json` when running API: pull latest Git changes (registry is versioned), then rerun API start command.
 - Docker API fails with missing package: rebuild image after pulling latest `Dockerfile`.
 - `dvc pull` says missing on remote: ensure latest `dvc.lock` is pushed to Git and artifacts were pushed with `uv run dvc push`.
 
@@ -289,13 +300,13 @@ Quick smoke test (recommended for first run):
 2. DVC access configured (if using Path A)
 3. `uv run dvc pull` (or use Path B if remote is incomplete)
 4. `uv run pytest -q`
-5. `make api-run` + successful `/health` and `/recommend`
+5. `uv run uvicorn src.serving.app:app --host 0.0.0.0 --port 8000` + successful `/health` and `/recommend`
 
 Full workflow validation:
 
 1. `uv sync`
 2. `uv run dvc pull`
 3. `uv run pytest -q`
-4. `make api-run` + successful `/health` and `/recommend`
-5. `make monitoring-report`
-6. `make retrain-trigger`
+4. `uv run uvicorn src.serving.app:app --host 0.0.0.0 --port 8000` + successful `/health` and `/recommend`
+5. `uv run python src/monitoring/report.py`
+6. `uv run python src/pipeline/retrain_pipeline.py --strategy trigger`
