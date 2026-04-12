@@ -30,16 +30,17 @@ jobs:
       - name: Configure DVC credentials
         id: ci_dvc
         env:
-          DVC_GDRIVE_CLIENT_ID: ${{ secrets.DVC_GDRIVE_CLIENT_ID }}
-          DVC_GDRIVE_CLIENT_SECRET: ${{ secrets.DVC_GDRIVE_CLIENT_SECRET }}
+          DVC_GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.DVC_GDRIVE_SERVICE_ACCOUNT_JSON }}
         run: |
-          if [ -n "$DVC_GDRIVE_CLIENT_ID" ] && [ -n "$DVC_GDRIVE_CLIENT_SECRET" ]; then
-            uv run dvc remote modify --local gdrive_remote gdrive_client_id "$DVC_GDRIVE_CLIENT_ID"
-            uv run dvc remote modify --local gdrive_remote gdrive_client_secret "$DVC_GDRIVE_CLIENT_SECRET"
+          if [ -n "$DVC_GDRIVE_SERVICE_ACCOUNT_JSON" ]; then
+            SA_PATH="$RUNNER_TEMP/gdrive-service-account.json"
+            printf '%s' "$DVC_GDRIVE_SERVICE_ACCOUNT_JSON" > "$SA_PATH"
+            uv run dvc remote modify --local gdrive_remote gdrive_use_service_account true
+            uv run dvc remote modify --local gdrive_remote gdrive_service_account_json_file_path "$SA_PATH"
             uv run dvc pull
             echo "artifacts_mode=dvc" >> "$GITHUB_OUTPUT"
           else
-            echo "DVC secrets not configured; creating local smoke artifacts instead."
+            echo "Service account secret not configured; creating local smoke artifacts instead."
             uv run python scripts/prepare_smoke_artifacts.py
             echo "artifacts_mode=smoke" >> "$GITHUB_OUTPUT"
           fi
@@ -72,16 +73,17 @@ jobs:
       - name: Configure DVC credentials
         id: docker_dvc
         env:
-          DVC_GDRIVE_CLIENT_ID: ${{ secrets.DVC_GDRIVE_CLIENT_ID }}
-          DVC_GDRIVE_CLIENT_SECRET: ${{ secrets.DVC_GDRIVE_CLIENT_SECRET }}
+          DVC_GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.DVC_GDRIVE_SERVICE_ACCOUNT_JSON }}
         run: |
-          if [ -n "$DVC_GDRIVE_CLIENT_ID" ] && [ -n "$DVC_GDRIVE_CLIENT_SECRET" ]; then
-            uv run dvc remote modify --local gdrive_remote gdrive_client_id "$DVC_GDRIVE_CLIENT_ID"
-            uv run dvc remote modify --local gdrive_remote gdrive_client_secret "$DVC_GDRIVE_CLIENT_SECRET"
+          if [ -n "$DVC_GDRIVE_SERVICE_ACCOUNT_JSON" ]; then
+            SA_PATH="$RUNNER_TEMP/gdrive-service-account.json"
+            printf '%s' "$DVC_GDRIVE_SERVICE_ACCOUNT_JSON" > "$SA_PATH"
+            uv run dvc remote modify --local gdrive_remote gdrive_use_service_account true
+            uv run dvc remote modify --local gdrive_remote gdrive_service_account_json_file_path "$SA_PATH"
             uv run dvc pull
             echo "artifacts_mode=dvc" >> "$GITHUB_OUTPUT"
           else
-            echo "DVC secrets not configured; creating local smoke artifacts instead."
+            echo "Service account secret not configured; creating local smoke artifacts instead."
             uv run python scripts/prepare_smoke_artifacts.py
             echo "artifacts_mode=smoke" >> "$GITHUB_OUTPUT"
           fi

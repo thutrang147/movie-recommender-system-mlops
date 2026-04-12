@@ -50,15 +50,16 @@ jobs:
 
       - name: Configure DVC credentials
         env:
-          DVC_GDRIVE_CLIENT_ID: ${{ secrets.DVC_GDRIVE_CLIENT_ID }}
-          DVC_GDRIVE_CLIENT_SECRET: ${{ secrets.DVC_GDRIVE_CLIENT_SECRET }}
+          DVC_GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.DVC_GDRIVE_SERVICE_ACCOUNT_JSON }}
         run: |
-          if [ -z "$DVC_GDRIVE_CLIENT_ID" ] || [ -z "$DVC_GDRIVE_CLIENT_SECRET" ]; then
-            echo "Missing DVC secrets. Retraining workflow requires artifact access."
+          if [ -z "$DVC_GDRIVE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "Missing DVC_GDRIVE_SERVICE_ACCOUNT_JSON. Retraining workflow requires service-account credentials."
             exit 1
           fi
-          uv run dvc remote modify --local gdrive_remote gdrive_client_id "$DVC_GDRIVE_CLIENT_ID"
-          uv run dvc remote modify --local gdrive_remote gdrive_client_secret "$DVC_GDRIVE_CLIENT_SECRET"
+          SA_PATH="$RUNNER_TEMP/gdrive-service-account.json"
+          printf '%s' "$DVC_GDRIVE_SERVICE_ACCOUNT_JSON" > "$SA_PATH"
+          uv run dvc remote modify --local gdrive_remote gdrive_use_service_account true
+          uv run dvc remote modify --local gdrive_remote gdrive_service_account_json_file_path "$SA_PATH"
           uv run dvc pull
 
       - name: Run retraining pipeline
