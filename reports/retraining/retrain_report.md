@@ -1,9 +1,9 @@
 # Week 14 Retraining Report
 
-- strategy: trigger
+- strategy: schedule
 - status: evaluated_keep_current
 - dry_run: False
-- trigger_reason: Trigger-based retraining activated: drift_score=0.5398 >= 0.2000.
+- trigger_reason: Schedule-based retraining selected: run every cycle.
 - decision: keep_current
 - decision_reason: Keep current model: candidate did not satisfy promotion rule (candidate recall=0.045120, current recall=0.060079, candidate coverage=0.033089, current coverage=0.258294).
 - drift_score: 0.5398
@@ -11,8 +11,8 @@
 ## Model Selection
 - current_model: bpr (v1)
 - current_artifact: models/personalized/bpr_model.pkl
-- candidate_model: bpr_candidate (candidate-20260412T111831Z)
-- candidate_artifact: models/personalized/candidates/bpr_model_20260412T111831Z.pkl
+- candidate_model: bpr_candidate (candidate-20260412T163943Z)
+- candidate_artifact: models/personalized/candidates/bpr_model_20260412T163943Z.pkl
 
 ## Metrics
 - current_recall_at_k: 0.060079
@@ -28,7 +28,7 @@
 
 ## Artifacts
 - registry_path: models/registry.json
-- candidate_artifact: models/personalized/candidates/bpr_model_20260412T111831Z.pkl
+- candidate_artifact: models/personalized/candidates/bpr_model_20260412T163943Z.pkl
 - rollback_alias: models/personalized/active_model_prev.pkl
 
 ## Promotion Rule
