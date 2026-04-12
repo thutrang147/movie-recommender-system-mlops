@@ -240,6 +240,36 @@ def recommend_for_user(
     return recommendations.loc[:, ["rank", "movie_id", "score"]]
 
 
+def recommend_with_bundle(bundle: Dict[str, object], user_id: int, top_k: int) -> List[Tuple[int, float]]:
+    """Generate SVD recommendations directly from a serialized bundle."""
+    algo: SVD = bundle["model"]  # type: ignore[assignment]
+    train_user_seen_items: Dict[int, set[int]] = bundle["train_user_seen_items"]  # type: ignore[assignment]
+    item_ids: List[int] = bundle["item_ids"]  # type: ignore[assignment]
+    item_popularity_order: List[int] = bundle["item_popularity_order"]  # type: ignore[assignment]
+
+    if top_k <= 0:
+        return []
+
+    seen_items = train_user_seen_items.get(user_id, set())
+    
+    # Get predictions for all unseen items
+    predictions = []
+    for movie_id in item_ids:
+        if movie_id in seen_items:
+            continue
+        estimate = float(algo.predict(str(user_id), str(movie_id)).est)
+        predictions.append((movie_id, estimate))
+    
+    # If no predictions (user not in training data), fall back to popularity
+    if not predictions:
+        fallback = item_popularity_order[:top_k]
+        return [(movie_id, float(top_k - rank)) for rank, movie_id in enumerate(fallback)]
+    
+    # Sort by score descending and return top_k
+    predictions.sort(key=lambda x: x[1], reverse=True)
+    return predictions[:top_k]
+
+
 def ranking_metrics(
     algo: SVD,
     eval_df: pd.DataFrame,
