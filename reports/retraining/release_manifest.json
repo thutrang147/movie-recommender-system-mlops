@@ -1,6 +1,6 @@
 {
-  "released_at": "2026-04-12T11:19:34.056117+00:00",
-  "strategy": "trigger",
+  "released_at": "2026-04-12T16:19:41.854018+00:00",
+  "strategy": "schedule",
   "status": "evaluated_keep_current",
   "decision": "keep_current",
   "dry_run": false,
@@ -11,8 +11,8 @@
   },
   "candidate_model": {
     "name": "bpr_candidate",
-    "version": "candidate-20260412T111831Z",
-    "artifact_path": "models/personalized/candidates/bpr_model_20260412T111831Z.pkl"
+    "version": "candidate-20260412T161749Z",
+    "artifact_path": "models/personalized/candidates/bpr_model_20260412T161749Z.pkl"
   },
   "current_metrics": {
     "users_evaluated": 5968,
@@ -33,6 +33,6 @@
     "coverage_delta": -0.22520517676134055
   },
   "registry_path": "models/registry.json",
-  "candidate_artifact": "models/personalized/candidates/bpr_model_20260412T111831Z.pkl",
+  "candidate_artifact": "models/personalized/candidates/bpr_model_20260412T161749Z.pkl",
   "rollback_alias": "models/personalized/active_model_prev.pkl"
 }
