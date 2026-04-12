@@ -29,6 +29,15 @@ class PromotionDecision:
     reason: str
 
 
+def summarize_registry_model(model_cfg: Dict[str, object] | None) -> Dict[str, str]:
+    model_cfg = model_cfg if isinstance(model_cfg, dict) else {}
+    return {
+        "name": str(model_cfg.get("name", "unknown")),
+        "version": str(model_cfg.get("version", "unknown")),
+        "artifact_path": str(model_cfg.get("artifact_path", "N/A")),
+    }
+
+
 def load_yaml(path: Path) -> Dict[str, object]:
     if not path.exists():
         raise FileNotFoundError(f"Missing config file: {path}")
@@ -215,6 +224,39 @@ def infer_drift_score(trigger_report_path: Path) -> float | None:
         return None
 
 
+def build_metric_deltas(current_metrics: Dict[str, float | int], candidate_metrics: Dict[str, float | int]) -> Dict[str, float]:
+    current_recall = float(current_metrics.get("recall_at_k", 0.0))
+    candidate_recall = float(candidate_metrics.get("recall_at_k", 0.0))
+    current_coverage = float(current_metrics.get("coverage", 0.0))
+    candidate_coverage = float(candidate_metrics.get("coverage", 0.0))
+    return {
+        "recall_at_k_delta": candidate_recall - current_recall,
+        "coverage_delta": candidate_coverage - current_coverage,
+    }
+
+
+def write_release_manifest(summary: Dict[str, object], output_json: Path) -> None:
+    output_json.parent.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "released_at": datetime.now(tz=timezone.utc).isoformat(),
+        "strategy": summary.get("strategy"),
+        "status": summary.get("status"),
+        "decision": summary.get("decision"),
+        "dry_run": bool(summary.get("dry_run", False)),
+        "current_model": summary.get("current_model", {}),
+        "candidate_model": summary.get("candidate_model", {}),
+        "current_metrics": summary.get("current_metrics", {}),
+        "candidate_metrics": summary.get("candidate_metrics", {}),
+        "metric_deltas": summary.get("metric_deltas", {}),
+        "registry_path": summary.get("registry_path"),
+        "candidate_artifact": summary.get("candidate_artifact"),
+        "rollback_alias": summary.get("rollback_alias"),
+    }
+    with open(output_json, "w", encoding="utf-8") as file:
+        json.dump(manifest, file, indent=2, ensure_ascii=False)
+        file.write("\n")
+
+
 def write_report(summary: Dict[str, object], output_md: Path, output_json: Path) -> None:
     output_md.parent.mkdir(parents=True, exist_ok=True)
     output_json.parent.mkdir(parents=True, exist_ok=True)
@@ -223,29 +265,52 @@ def write_report(summary: Dict[str, object], output_md: Path, output_json: Path)
         json.dump(summary, file, indent=2, ensure_ascii=False)
         file.write("\n")
 
+    current_model = summary.get("current_model", {}) if isinstance(summary.get("current_model"), dict) else {}
+    candidate_model = summary.get("candidate_model", {}) if isinstance(summary.get("candidate_model"), dict) else {}
+    metric_deltas = summary.get("metric_deltas", {}) if isinstance(summary.get("metric_deltas"), dict) else {}
+    update_stats = summary.get("update_stats", {}) if isinstance(summary.get("update_stats"), dict) else {}
+
     lines = [
         "# Week 14 Retraining Report",
         "",
         f"- strategy: {summary['strategy']}",
         f"- status: {summary['status']}",
+        f"- dry_run: {bool(summary.get('dry_run', False))}",
         f"- trigger_reason: {summary['trigger_reason']}",
         f"- decision: {summary['decision']}",
         f"- decision_reason: {summary['decision_reason']}",
+        f"- drift_score: {float(summary.get('drift_score', 0.0) or 0.0):.4f}",
+        "",
+        "## Model Selection",
+        f"- current_model: {current_model.get('name', 'unknown')} ({current_model.get('version', 'unknown')})",
+        f"- current_artifact: {current_model.get('artifact_path', 'N/A')}",
+        f"- candidate_model: {candidate_model.get('name', 'candidate')} ({candidate_model.get('version', 'candidate')})",
+        f"- candidate_artifact: {candidate_model.get('artifact_path', summary['candidate_artifact'])}",
         "",
         "## Metrics",
         f"- current_recall_at_k: {float(summary['current_metrics']['recall_at_k']):.6f}",
         f"- candidate_recall_at_k: {float(summary['candidate_metrics']['recall_at_k']):.6f}",
         f"- current_coverage: {float(summary['current_metrics']['coverage']):.6f}",
         f"- candidate_coverage: {float(summary['candidate_metrics']['coverage']):.6f}",
+        f"- recall_at_k_delta: {float(metric_deltas.get('recall_at_k_delta', 0.0)):.6f}",
+        f"- coverage_delta: {float(metric_deltas.get('coverage_delta', 0.0)):.6f}",
+        "",
+        "## Training Data Update",
+        f"- new_feedback_rows: {int(update_stats.get('new_feedback_rows', 0))}",
+        f"- updated_train_rows: {int(update_stats.get('updated_train_rows', 0))}",
         "",
         "## Artifacts",
         f"- registry_path: {summary['registry_path']}",
         f"- candidate_artifact: {summary['candidate_artifact']}",
         f"- rollback_alias: {summary['rollback_alias']}",
         "",
+        "## Promotion Rule",
+        "- Promote when candidate recall_at_k is higher than current recall_at_k.",
+        "- If recall_at_k is tied, use coverage as the tie-breaker.",
+        "",
         "## Rollback Strategy",
         "- If a promoted model is unstable in production or degrades KPI, run `make retrain-rollback`.",
-        "- The rollback command switches active model in registry to the `active_model_prev` snapshot.",
+        "- The rollback command restores active model to a real artifact path (never to alias path).",
     ]
 
     output_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -253,21 +318,40 @@ def write_report(summary: Dict[str, object], output_md: Path, output_json: Path)
 
 def rollback_to_previous(registry_path: Path, rollback_alias_path: Path, reason: str) -> Dict[str, object]:
     registry = load_registry(registry_path)
-    if not rollback_alias_path.exists():
-        raise FileNotFoundError(f"Rollback artifact missing: {rollback_alias_path}")
-
     previous_active = registry.get("active_model", {})
     if not isinstance(previous_active, dict):
         previous_active = {}
 
-    timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    metadata = registry.get("metadata", {}) if isinstance(registry.get("metadata"), dict) else {}
+    previous_model = metadata.get("previous_model", {}) if isinstance(metadata.get("previous_model"), dict) else {}
+
+    rollback_target = previous_model if previous_model else {}
+    rollback_target_path = project_root / str(rollback_target.get("artifact_path", ""))
+
+    if not rollback_target or not rollback_target_path.exists():
+        if not rollback_alias_path.exists():
+            raise FileNotFoundError(
+                "Rollback failed: no valid previous model artifact and rollback alias is missing "
+                f"({rollback_alias_path})."
+            )
+
+        timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        restored_path = rollback_alias_path.parent / f"rollback_restored_{timestamp}.pkl"
+        shutil.copy2(rollback_alias_path, restored_path)
+        rollback_target = {
+            "name": str(previous_model.get("name", "bpr")),
+            "version": f"rollback-{timestamp}",
+            "artifact_path": to_relative(restored_path),
+        }
+        rollback_target_path = restored_path
+
+    # Keep active_model pointed at a concrete artifact path, not at rollback alias.
     registry["active_model"] = {
-        "name": "active_model_prev",
-        "version": f"rollback-{timestamp}",
-        "artifact_path": to_relative(rollback_alias_path),
+        "name": str(rollback_target.get("name", "bpr")),
+        "version": str(rollback_target.get("version", "unknown")),
+        "artifact_path": to_relative(rollback_target_path),
     }
 
-    metadata = registry.get("metadata", {}) if isinstance(registry.get("metadata"), dict) else {}
     metadata["rollback_at"] = datetime.now(tz=timezone.utc).date().isoformat()
     metadata["rollback_reason"] = reason
     metadata["rolled_back_from"] = previous_active
@@ -283,7 +367,10 @@ def main() -> None:
     parser.add_argument("--strategy", choices=["schedule", "trigger"], default=None)
     parser.add_argument("--new-feedback-path", type=str, default=None)
     parser.add_argument("--drift-score", type=float, default=None)
-    parser.add_argument("--rollback", action="store_true", help="Rollback active model to previous snapshot alias.")
+    parser.add_argument("--rollback", action="store_true", help="Rollback active model to previous stable artifact.")
+    parser.add_argument("--dry-run", action="store_true", help="Evaluate and report without changing registry state.")
+    parser.add_argument("--current-artifact-override", type=str, default=None, help="Optional artifact path to evaluate as the current model.")
+    parser.add_argument("--candidate-artifact-override", type=str, default=None, help="Optional artifact path to evaluate as the candidate model.")
     parser.add_argument("--retrain-config", type=str, default="configs/retraining.yaml")
     parser.add_argument("--data-config", type=str, default="configs/data.yaml")
     parser.add_argument("--model-config", type=str, default="configs/model.yaml")
@@ -312,9 +399,12 @@ def main() -> None:
 
     registry_path = project_root / str(paths_cfg.get("registry_path", "models/registry.json"))
     rollback_alias = project_root / str(paths_cfg.get("rollback_alias_path", "models/personalized/active_model_prev.pkl"))
+    registry_snapshot = load_registry(registry_path)
+    current_model_summary = summarize_registry_model(registry_snapshot.get("active_model", {}))
 
     output_md = project_root / str(paths_cfg.get("report_markdown", "reports/retraining/retrain_report.md"))
     output_json = project_root / str(paths_cfg.get("report_json", "reports/retraining/retrain_report.json"))
+    release_manifest_json = project_root / str(paths_cfg.get("release_manifest_json", "reports/retraining/release_manifest.json"))
 
     if args.rollback:
         rollback_to_previous(
@@ -325,16 +415,23 @@ def main() -> None:
         summary = {
             "strategy": strategy,
             "status": "rollback_completed",
+            "dry_run": bool(args.dry_run),
             "trigger_reason": "manual rollback flag provided",
             "decision": "rollback",
-            "decision_reason": "Active model switched to rollback snapshot alias.",
+            "decision_reason": "Active model restored to previous stable artifact path.",
+            "drift_score": args.drift_score,
+            "current_model": current_model_summary,
+            "candidate_model": summarize_registry_model(None),
             "current_metrics": {"recall_at_k": 0.0, "coverage": 0.0},
             "candidate_metrics": {"recall_at_k": 0.0, "coverage": 0.0},
+            "metric_deltas": {"recall_at_k_delta": 0.0, "coverage_delta": 0.0},
+            "update_stats": {"new_feedback_rows": 0, "updated_train_rows": 0},
             "registry_path": to_relative(registry_path),
             "candidate_artifact": "N/A",
             "rollback_alias": to_relative(rollback_alias),
         }
         write_report(summary=summary, output_md=output_md, output_json=output_json)
+        write_release_manifest(summary=summary, output_json=release_manifest_json)
         print(f"Rollback completed. Active model points to: {rollback_alias}")
         return
 
@@ -346,16 +443,23 @@ def main() -> None:
         summary = {
             "strategy": strategy,
             "status": "skipped",
+            "dry_run": bool(args.dry_run),
             "trigger_reason": trigger_reason,
             "decision": "no_retrain",
             "decision_reason": "Retraining was not required by trigger strategy.",
+            "drift_score": drift_score,
+            "current_model": current_model_summary,
+            "candidate_model": summarize_registry_model(None),
             "current_metrics": {"recall_at_k": 0.0, "coverage": 0.0},
             "candidate_metrics": {"recall_at_k": 0.0, "coverage": 0.0},
+            "metric_deltas": {"recall_at_k_delta": 0.0, "coverage_delta": 0.0},
+            "update_stats": {"new_feedback_rows": 0, "updated_train_rows": 0},
             "registry_path": to_relative(registry_path),
             "candidate_artifact": "N/A",
             "rollback_alias": to_relative(rollback_alias),
         }
         write_report(summary=summary, output_md=output_md, output_json=output_json)
+        write_release_manifest(summary=summary, output_json=release_manifest_json)
         print(trigger_reason)
         print("Retraining skipped.")
         return
@@ -406,17 +510,31 @@ def main() -> None:
         patience=int(bpr_cfg.get("patience", 5)),
     )
 
-    run_training(
-        train_path=retrain_train_path,
-        val_path=val_path,
-        model_path=candidate_model_path,
-        report_dir=candidate_report_dir,
-        config=config,
-    )
-
     registry = load_registry(registry_path)
     current_model_cfg = registry.get("active_model", {}) if isinstance(registry.get("active_model"), dict) else {}
     current_artifact = project_root / str(current_model_cfg.get("artifact_path", "models/personalized/bpr_model.pkl"))
+    if args.current_artifact_override:
+        current_artifact = Path(args.current_artifact_override)
+        if not current_artifact.is_absolute():
+            current_artifact = project_root / current_artifact
+        current_model_cfg = {
+            "name": f"{Path(current_artifact).stem}",
+            "version": "override-current",
+            "artifact_path": to_relative(current_artifact),
+        }
+
+    if args.candidate_artifact_override:
+        candidate_model_path = Path(args.candidate_artifact_override)
+        if not candidate_model_path.is_absolute():
+            candidate_model_path = project_root / candidate_model_path
+    else:
+        run_training(
+            train_path=retrain_train_path,
+            val_path=val_path,
+            model_path=candidate_model_path,
+            report_dir=candidate_report_dir,
+            config=config,
+        )
 
     # Always refresh rollback alias from the current active model for safer recovery.
     rollback_alias.parent.mkdir(parents=True, exist_ok=True)
@@ -441,20 +559,29 @@ def main() -> None:
     )
 
     decision = decide_promotion(current_metrics=current_metrics, candidate_metrics=candidate_metrics)
+    metric_deltas = build_metric_deltas(current_metrics=current_metrics, candidate_metrics=candidate_metrics)
     status = "evaluated_keep_current"
     final_decision = "keep_current"
 
-    if decision.promote:
+    if decision.promote and not args.dry_run:
         archive_dir.mkdir(parents=True, exist_ok=True)
 
         backup_name = f"{current_model_cfg.get('name', 'model')}_{current_model_cfg.get('version', 'unknown')}_{timestamp}.pkl"
         archive_path = archive_dir / backup_name
         shutil.copy2(current_artifact, archive_path)
 
+        promoted_artifact_path = current_artifact
+        shutil.copy2(candidate_model_path, promoted_artifact_path)
+
+        candidate_summary_json = candidate_model_path.with_suffix(".json")
+        promoted_summary_json = promoted_artifact_path.with_suffix(".json")
+        if candidate_summary_json.exists():
+            shutil.copy2(candidate_summary_json, promoted_summary_json)
+
         registry["active_model"] = {
             "name": "bpr",
             "version": f"weekly-{timestamp}",
-            "artifact_path": to_relative(candidate_model_path),
+            "artifact_path": to_relative(promoted_artifact_path),
         }
         metadata = registry.get("metadata", {}) if isinstance(registry.get("metadata"), dict) else {}
         metadata["updated_at"] = datetime.now(tz=timezone.utc).date().isoformat()
@@ -462,21 +589,35 @@ def main() -> None:
         metadata["rollback_alias"] = to_relative(rollback_alias)
         metadata["promotion_reason"] = decision.reason
         metadata["archive_backup"] = to_relative(archive_path)
+        metadata["promoted_candidate_source"] = to_relative(candidate_model_path)
         registry["metadata"] = metadata
 
         save_registry(registry_path, registry)
         status = "promoted"
         final_decision = "promote"
+    elif decision.promote and args.dry_run:
+        status = "evaluated_promote_dry_run"
+        final_decision = "promote"
+
+    candidate_model_summary = {
+        "name": "bpr_candidate" if not args.candidate_artifact_override else Path(candidate_model_path).stem,
+        "version": f"candidate-{timestamp}" if not args.candidate_artifact_override else "override-candidate",
+        "artifact_path": to_relative(candidate_model_path),
+    }
 
     summary = {
         "strategy": strategy,
         "status": status,
+        "dry_run": bool(args.dry_run),
         "trigger_reason": trigger_reason,
         "decision": final_decision,
         "decision_reason": decision.reason,
         "drift_score": drift_score,
+        "current_model": summarize_registry_model(current_model_cfg),
+        "candidate_model": candidate_model_summary,
         "current_metrics": current_metrics,
         "candidate_metrics": candidate_metrics,
+        "metric_deltas": metric_deltas,
         "update_stats": update_stats,
         "registry_path": to_relative(registry_path),
         "candidate_artifact": to_relative(candidate_model_path),
@@ -484,6 +625,7 @@ def main() -> None:
     }
 
     write_report(summary=summary, output_md=output_md, output_json=output_json)
+    write_release_manifest(summary=summary, output_json=release_manifest_json)
 
     print(trigger_reason)
     print(decision.reason)

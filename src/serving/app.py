@@ -9,19 +9,21 @@ from pathlib import Path
 
 import yaml
 from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from src.serving.predictor import RecommendationPredictor
 from src.monitoring.logger import MonitoringLogger
 
 
 class HealthResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
     status: str
     active_model: str
     model_version: str
 
 
 class RecommendResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
     user_id: int
     strategy: str
     model_version: str

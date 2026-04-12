@@ -53,10 +53,24 @@ class RecommendationPredictor:
 
         model_cfg = registry.get("active_model", {})
         fallback_cfg = registry.get("fallback", {})
+        metadata_cfg = registry.get("metadata", {}) if isinstance(registry.get("metadata"), dict) else {}
 
         model_path = self.project_root / str(model_cfg.get("artifact_path", ""))
         if not model_path.exists():
-            raise FileNotFoundError(f"Missing active model artifact: {model_path}")
+            rolled_back_from = (
+                metadata_cfg.get("rolled_back_from", {})
+                if isinstance(metadata_cfg.get("rolled_back_from"), dict)
+                else {}
+            )
+            rolled_back_path = self.project_root / str(rolled_back_from.get("artifact_path", ""))
+            if rolled_back_from and rolled_back_path.exists():
+                model_cfg = rolled_back_from
+                model_path = rolled_back_path
+            else:
+                raise FileNotFoundError(
+                    "Missing active model artifact: "
+                    f"{model_path}. No valid metadata.rolled_back_from artifact found."
+                )
 
         self.model_info = RegistryModel(
             name=str(model_cfg.get("name", "unknown")),

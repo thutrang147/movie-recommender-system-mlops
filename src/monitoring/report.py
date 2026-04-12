@@ -74,6 +74,15 @@ def _safe_float(value: float | int | None, default: float = 0.0) -> float:
         return default
 
 
+def _safe_int(value: float | int | None, default: int = 0) -> int:
+    try:
+        if value is None:
+            return default
+        return int(value)
+    except Exception:
+        return default
+
+
 def build_monitoring_summary(
     project_root: Path,
     logs_df: pd.DataFrame,
@@ -86,17 +95,25 @@ def build_monitoring_summary(
     success_count = int((logs_df["response_status"] < 400).sum()) if total_requests else 0
     error_count = int((logs_df["response_status"] >= 400).sum()) if total_requests else 0
     avg_latency_ms = _safe_float(logs_df["latency_ms"].mean(), 0.0) if total_requests else 0.0
+    p95_latency_ms = _safe_float(logs_df["latency_ms"].quantile(0.95), 0.0) if total_requests else 0.0
     success_rate = (success_count / total_requests) if total_requests else 0.0
     error_rate = (error_count / total_requests) if total_requests else 0.0
 
+    fallback_count = (
+        int((logs_df["strategy"] == "popularity_fallback").sum()) if total_requests and "strategy" in logs_df.columns else 0
+    )
+    personalized_count = max(total_requests - fallback_count, 0)
     fallback_rate = (
         float((logs_df["strategy"] == "popularity_fallback").mean()) if total_requests and "strategy" in logs_df.columns else 0.0
     )
+    personalized_rate = (personalized_count / total_requests) if total_requests else 0.0
     unknown_user_rate = fallback_rate
 
+    unique_users = _safe_int(logs_df["user_id"].nunique(), 0) if total_requests and "user_id" in logs_df.columns else 0
     requests_per_user = (
         float(logs_df.groupby("user_id").size().mean()) if total_requests and "user_id" in logs_df.columns else 0.0
     )
+    avg_top_k = _safe_float(logs_df["top_k"].mean(), 0.0) if total_requests and "top_k" in logs_df.columns else 0.0
 
     volume_per_day = {}
     if total_requests and "timestamp" in logs_df.columns:
@@ -136,11 +153,17 @@ def build_monitoring_summary(
             "success_rate": success_rate,
             "error_rate": error_rate,
             "avg_latency_ms": avg_latency_ms,
+            "p95_latency_ms": p95_latency_ms,
         },
         "data_behavior": {
+            "unique_users": unique_users,
+            "personalized_count": personalized_count,
+            "personalized_rate": personalized_rate,
+            "fallback_count": fallback_count,
             "fallback_rate": fallback_rate,
             "unknown_user_rate": unknown_user_rate,
             "requests_per_user": requests_per_user,
+            "avg_top_k": avg_top_k,
             "request_volume_per_day": volume_per_day,
         },
         "drift": {
@@ -179,11 +202,17 @@ def save_report(summary: Dict[str, object], output_md: Path, output_json: Path) 
         f"- success_rate: {float(service['success_rate']):.4f}",
         f"- error_rate: {float(service['error_rate']):.4f}",
         f"- avg_latency_ms: {float(service['avg_latency_ms']):.2f}",
+        f"- p95_latency_ms: {float(service['p95_latency_ms']):.2f}",
         "",
         "## Data Behavior",
+        f"- unique_users: {int(data['unique_users'])}",
+        f"- personalized_count: {int(data['personalized_count'])}",
+        f"- personalized_rate: {float(data['personalized_rate']):.4f}",
+        f"- fallback_count: {int(data['fallback_count'])}",
         f"- fallback_rate: {float(data['fallback_rate']):.4f}",
         f"- unknown_user_rate: {float(data['unknown_user_rate']):.4f}",
         f"- requests_per_user: {float(data['requests_per_user']):.4f}",
+        f"- avg_top_k: {float(data['avg_top_k']):.2f}",
         "",
         "## Drift",
         f"- drift_score: {float(drift['drift_score']):.4f}",

@@ -13,3 +13,4 @@ paths:
   rollback_alias_path: models/personalized/active_model_prev.pkl
   report_markdown: reports/retraining/retrain_report.md
   report_json: reports/retraining/retrain_report.json
+  release_manifest_json: reports/retraining/release_manifest.json
