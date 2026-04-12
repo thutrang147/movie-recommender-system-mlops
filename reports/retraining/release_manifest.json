@@ -1,11 +1,9 @@
 {
+  "released_at": "2026-04-12T11:19:34.056117+00:00",
   "strategy": "trigger",
   "status": "evaluated_keep_current",
-  "dry_run": false,
-  "trigger_reason": "Trigger-based retraining activated: drift_score=0.5398 >= 0.2000.",
   "decision": "keep_current",
-  "decision_reason": "Keep current model: candidate did not satisfy promotion rule (candidate recall=0.045120, current recall=0.060079, candidate coverage=0.033089, current coverage=0.258294).",
-  "drift_score": 0.5398113891404432,
+  "dry_run": false,
   "current_model": {
     "name": "bpr",
     "version": "v1",
@@ -33,10 +31,6 @@
   "metric_deltas": {
     "recall_at_k_delta": -0.014958449500254122,
     "coverage_delta": -0.22520517676134055
-  },
-  "update_stats": {
-    "new_feedback_rows": 0,
-    "updated_train_rows": 699826
   },
   "registry_path": "models/registry.json",
   "candidate_artifact": "models/personalized/candidates/bpr_model_20260412T111831Z.pkl",

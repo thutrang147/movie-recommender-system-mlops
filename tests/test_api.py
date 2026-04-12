@@ -83,3 +83,51 @@ def test_health_and_recommend_endpoints(tmp_path: Path, monkeypatch) -> None:
         unknown_json = unknown.json()
         assert unknown_json["strategy"] == "popularity_fallback"
         assert unknown_json["recommendations"] == [13, 12]
+
+
+def test_startup_with_missing_active_model_uses_rolled_back_from(tmp_path: Path, monkeypatch) -> None:
+    missing_active_model = tmp_path / "missing_active.pkl"
+    rolled_back_model = tmp_path / "bpr_rolled_back.pkl"
+    baseline_path = tmp_path / "baseline.parquet"
+    registry_path = tmp_path / "registry_missing_active.json"
+
+    _create_tiny_bpr_bundle(rolled_back_model)
+    pd.DataFrame(
+        {
+            "movie_id": [13, 12, 11, 10],
+            "score": [10.0, 9.0, 8.0, 7.0],
+            "interaction_count": [100, 80, 60, 40],
+        }
+    ).to_parquet(baseline_path, index=False)
+
+    registry = {
+        "active_model": {
+            "name": "active_model_prev",
+            "version": "rollback-bad",
+            "artifact_path": str(missing_active_model),
+        },
+        "fallback": {
+            "type": "popularity",
+            "artifact_path": str(baseline_path),
+        },
+        "metadata": {
+            "rolled_back_from": {
+                "name": "bpr",
+                "version": "vtest-rollback",
+                "artifact_path": str(rolled_back_model),
+            }
+        },
+    }
+    registry_path.write_text(json.dumps(registry), encoding="utf-8")
+
+    monkeypatch.setenv("APP_REGISTRY_PATH", str(registry_path))
+    monkeypatch.setenv("APP_DEFAULT_TOP_K", "5")
+
+    from src.serving.app import create_app
+
+    with TestClient(create_app()) as client:
+        health = client.get("/health")
+        assert health.status_code == 200
+        assert health.json()["status"] == "ok"
+        assert health.json()["active_model"] == "bpr"
+        assert health.json()["model_version"] == "vtest-rollback"

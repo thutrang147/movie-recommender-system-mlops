@@ -11,15 +11,15 @@
 - patience: 5
 
 ## Validation Metrics
-- users_evaluated: 5813
-- recall_at_k: 0.0742
-- map_at_k: 0.0373
-- hit_rate_at_k: 0.3406
-- coverage: 0.2583
+- users_evaluated: 5815
+- recall_at_k: 0.0521
+- map_at_k: 0.0278
+- hit_rate_at_k: 0.2696
+- coverage: 0.0331
 
 ## Early Stopping
-- best_epoch: 26
-- best_val_map: 0.0373
+- best_epoch: 1
+- best_val_map: 0.0278
 
 ## Notes
 BPR is trained with sampled pairwise triplets and early stopping on validation MAP@K.

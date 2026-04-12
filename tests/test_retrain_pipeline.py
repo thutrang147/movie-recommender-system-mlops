@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from src.pipeline.retrain_pipeline import decide_promotion, should_retrain_triggered
+import pytest
+
+from src.pipeline.retrain_pipeline import build_metric_deltas, decide_promotion, should_retrain_triggered, summarize_registry_model
 
 
 def test_promote_when_recall_improves() -> None:
@@ -48,3 +50,19 @@ def test_schedule_based_always_runs() -> None:
     should_run, reason = should_retrain_triggered(strategy="schedule", drift_score=None, drift_threshold=0.20)
     assert should_run is True
     assert "Schedule-based" in reason
+
+
+def test_build_metric_deltas() -> None:
+    deltas = build_metric_deltas(
+        current_metrics={"recall_at_k": 0.10, "coverage": 0.20},
+        candidate_metrics={"recall_at_k": 0.12, "coverage": 0.18},
+    )
+    assert deltas["recall_at_k_delta"] == pytest.approx(0.02)
+    assert deltas["coverage_delta"] == pytest.approx(-0.02)
+
+
+def test_summarize_registry_model_defaults() -> None:
+    summary = summarize_registry_model({})
+    assert summary["name"] == "unknown"
+    assert summary["version"] == "unknown"
+    assert summary["artifact_path"] == "N/A"

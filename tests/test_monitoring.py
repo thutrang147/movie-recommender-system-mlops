@@ -67,6 +67,11 @@ def test_request_logger_and_report_summary(tmp_path: Path) -> None:
 
     assert summary["service_metrics"]["request_count"] == 2
     assert summary["service_metrics"]["error_count"] == 0
+    assert summary["service_metrics"]["p95_latency_ms"] >= summary["service_metrics"]["avg_latency_ms"]
+    assert summary["data_behavior"]["unique_users"] == 2
+    assert summary["data_behavior"]["personalized_count"] == 1
+    assert summary["data_behavior"]["fallback_count"] == 1
     assert summary["data_behavior"]["fallback_rate"] == 0.5
+    assert summary["data_behavior"]["avg_top_k"] == 5.0
     assert isinstance(summary["drift"]["drift_score"], float)
     assert isinstance(summary["warnings"], list)

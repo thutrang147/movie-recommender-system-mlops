@@ -27,8 +27,91 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Configure DVC credentials
+        id: ci_dvc
+        env:
+          DVC_GDRIVE_CLIENT_ID: ${{ secrets.DVC_GDRIVE_CLIENT_ID }}
+          DVC_GDRIVE_CLIENT_SECRET: ${{ secrets.DVC_GDRIVE_CLIENT_SECRET }}
+        run: |
+          if [ -n "$DVC_GDRIVE_CLIENT_ID" ] && [ -n "$DVC_GDRIVE_CLIENT_SECRET" ]; then
+            uv run dvc remote modify --local gdrive_remote gdrive_client_id "$DVC_GDRIVE_CLIENT_ID"
+            uv run dvc remote modify --local gdrive_remote gdrive_client_secret "$DVC_GDRIVE_CLIENT_SECRET"
+            uv run dvc pull
+            echo "artifacts_mode=dvc" >> "$GITHUB_OUTPUT"
+          else
+            echo "DVC secrets not configured; creating local smoke artifacts instead."
+            uv run python scripts/prepare_smoke_artifacts.py
+            echo "artifacts_mode=smoke" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Smoke compile src modules
         run: uv run python -m py_compile src/models/baseline.py src/models/train.py src/models/train_bpr.py src/models/train_content_based.py src/models/evaluate.py src/models/recommend.py src/models/final_benchmark.py src/models/log_mlflow_benchmark.py src/serving/app.py src/serving/predictor.py src/monitoring/logger.py src/monitoring/drift.py src/monitoring/report.py src/pipeline/retrain_pipeline.py
 
       - name: Run unit tests
         run: uv run pytest -q
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Configure DVC credentials
+        id: docker_dvc
+        env:
+          DVC_GDRIVE_CLIENT_ID: ${{ secrets.DVC_GDRIVE_CLIENT_ID }}
+          DVC_GDRIVE_CLIENT_SECRET: ${{ secrets.DVC_GDRIVE_CLIENT_SECRET }}
+        run: |
+          if [ -n "$DVC_GDRIVE_CLIENT_ID" ] && [ -n "$DVC_GDRIVE_CLIENT_SECRET" ]; then
+            uv run dvc remote modify --local gdrive_remote gdrive_client_id "$DVC_GDRIVE_CLIENT_ID"
+            uv run dvc remote modify --local gdrive_remote gdrive_client_secret "$DVC_GDRIVE_CLIENT_SECRET"
+            uv run dvc pull
+            echo "artifacts_mode=dvc" >> "$GITHUB_OUTPUT"
+          else
+            echo "DVC secrets not configured; creating local smoke artifacts instead."
+            uv run python scripts/prepare_smoke_artifacts.py
+            echo "artifacts_mode=smoke" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build API image
+        run: docker build -t movielens-api-ci .
+
+      - name: Start API container
+        run: docker run -d --name movielens-api-smoke -p 8000:8000 movielens-api-ci
+
+      - name: Wait for API startup
+        run: |
+          for i in {1..20}; do
+            if curl -fsS http://127.0.0.1:8000/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs movielens-api-smoke
+          exit 1
+
+      - name: Smoke test recommend endpoint
+        run: |
+          curl -fsS http://127.0.0.1:8000/health
+          curl -fsS "http://127.0.0.1:8000/recommend/1?top_k=5"
+
+      - name: Print container logs on failure
+        if: failure()
+        run: docker logs movielens-api-smoke
+
+      - name: Cleanup container
+        if: always()
+        run: docker rm -f movielens-api-smoke

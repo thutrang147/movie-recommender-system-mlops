@@ -1,8 +1,8 @@
 {
   "active_model": {
-    "name": "active_model_prev",
-    "version": "rollback-20260406T085421Z",
-    "artifact_path": "models/personalized/active_model_prev.pkl"
+    "name": "bpr",
+    "version": "v1",
+    "artifact_path": "models/personalized/bpr_model.pkl"
   },
   "fallback": {
     "type": "popularity",

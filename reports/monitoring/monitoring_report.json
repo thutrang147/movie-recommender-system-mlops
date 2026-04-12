@@ -1,43 +1,83 @@
 {
   "service_metrics": {
-    "request_count": 2,
-    "success_count": 2,
+    "request_count": 28,
+    "success_count": 28,
     "error_count": 0,
     "success_rate": 1.0,
     "error_rate": 0.0,
-    "avg_latency_ms": 0.047186999836412724
+    "avg_latency_ms": 22.13783737909709,
+    "p95_latency_ms": 61.91727934992859
   },
   "data_behavior": {
-    "fallback_rate": 0.5,
-    "unknown_user_rate": 0.5,
-    "requests_per_user": 1.0,
+    "unique_users": 12,
+    "personalized_count": 18,
+    "personalized_rate": 0.6428571428571429,
+    "fallback_count": 10,
+    "fallback_rate": 0.35714285714285715,
+    "unknown_user_rate": 0.35714285714285715,
+    "requests_per_user": 2.3333333333333335,
+    "avg_top_k": 5.0,
     "request_volume_per_day": {
-      "2026-04-06": 2
+      "2026-04-10": 22,
+      "2026-04-12": 6
     }
   },
   "drift": {
-    "drift_score": 0.6887383960036908,
+    "drift_score": 0.5398113891404432,
     "top_item_shift": [
       {
         "item_id": 13,
         "train_probability": 8.854069230252927e-05,
-        "production_probability": 0.4
+        "production_probability": 0.08571428571428572
       },
       {
         "item_id": 12,
         "train_probability": 0.0001328110384537939,
-        "production_probability": 0.4
+        "production_probability": 0.08571428571428572
+      },
+      {
+        "item_id": 2858,
+        "train_probability": 0.004312788560542555,
+        "production_probability": 0.05
+      },
+      {
+        "item_id": 593,
+        "train_probability": 0.003051797733072662,
+        "production_probability": 0.05
+      },
+      {
+        "item_id": 1196,
+        "train_probability": 0.003690147563060252,
+        "production_probability": 0.05
+      },
+      {
+        "item_id": 260,
+        "train_probability": 0.0036330245357682977,
+        "production_probability": 0.05
       },
       {
         "item_id": 11,
         "train_probability": 0.0010924778969586273,
-        "production_probability": 0.2
+        "production_probability": 0.05
+      },
+      {
+        "item_id": 527,
+        "train_probability": 0.0027933160345765683,
+        "production_probability": 0.04285714285714286
+      },
+      {
+        "item_id": 589,
+        "train_probability": 0.003210314133807835,
+        "production_probability": 0.03571428571428571
+      },
+      {
+        "item_id": 2028,
+        "train_probability": 0.0032717213881466862,
+        "production_probability": 0.03571428571428571
       }
     ]
   },
   "warnings": [
-    "Alert: fallback_rate=0.5000 exceeded threshold 0.40.",
-    "Drift warning: recommendation distribution drift_score=0.6887 exceeds threshold.",
-    "Drift warning: unknown_user_rate=0.5000 exceeds threshold."
+    "Drift warning: recommendation distribution drift_score=0.5398 exceeds threshold."
   ]
 }
