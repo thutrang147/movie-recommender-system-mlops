@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
-import json
+
+
+
 import pickle
 import sys
 from pathlib import Path
 from typing import Dict, List, Tuple
-
 import pandas as pd  # type: ignore[import-not-found]
 import streamlit as st
+from src.models.bpr import recommend_with_bundle as recommend_with_bpr
+from src.models.content_based import recommend_with_bundle as recommend_with_content
 
 # Add project root to path for imports
 project_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(project_root))
-
-from src.models.bpr import recommend_with_bundle as recommend_with_bpr
-from src.models.content_based import recommend_with_bundle as recommend_with_content
 
 
 @st.cache_resource
@@ -231,7 +231,7 @@ def show_model_info(bpr_bundle: Dict, content_bundle: Dict) -> None:
         if bpr_bundle:
             config = bpr_bundle.get("config", {})
             st.write(f"**Algorithm:** {bpr_bundle.get('algorithm', 'Unknown')}")
-            st.write(f"**Model Config:**")
+            st.write("**Model Config:**")
             for key, value in config.items():
                 st.write(f"  - {key}: {value}")
     
@@ -240,7 +240,7 @@ def show_model_info(bpr_bundle: Dict, content_bundle: Dict) -> None:
         if content_bundle:
             config = content_bundle.get("config", {})
             st.write(f"**Algorithm:** {content_bundle.get('algorithm', 'Unknown')}")
-            st.write(f"**Model Config:**")
+            st.write("**Model Config:**")
             for key, value in config.items():
                 st.write(f"  - {key}: {value}")
 

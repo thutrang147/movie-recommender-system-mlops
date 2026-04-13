@@ -6,7 +6,7 @@ import json
 import pickle
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import pandas as pd  # type: ignore[import-not-found]
 

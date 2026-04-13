@@ -10,11 +10,6 @@ from typing import Dict, List
 
 import pandas as pd  # type: ignore[import-not-found]
 import yaml
-
-project_root = Path(__file__).resolve().parents[2]
-if str(project_root) not in sys.path:
-    sys.path.append(str(project_root))
-
 from src.monitoring.drift import (
     build_top_item_shift,
     compute_drift_score,
@@ -22,6 +17,10 @@ from src.monitoring.drift import (
     load_production_recommendation_distribution,
     load_train_popularity_distribution,
 )
+
+project_root = Path(__file__).resolve().parents[2]
+if str(project_root) not in sys.path:
+    sys.path.append(str(project_root))
 
 
 def load_yaml(path: Path) -> Dict[str, object]:

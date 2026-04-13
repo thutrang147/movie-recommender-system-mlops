@@ -14,13 +14,12 @@ from typing import Dict, Tuple
 
 import pandas as pd  # type: ignore[import-not-found]
 import yaml
+from src.models.evaluate import evaluate_personalized_model
+from src.models.train_bpr import BPRConfig, run_training
 
 project_root = Path(__file__).resolve().parents[2]
 if str(project_root) not in sys.path:
     sys.path.append(str(project_root))
-
-from src.models.evaluate import evaluate_personalized_model
-from src.models.train_bpr import BPRConfig, run_training
 
 
 @dataclass
