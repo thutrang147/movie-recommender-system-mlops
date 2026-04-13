@@ -1,0 +1,76 @@
+{
+  "service_metrics": {
+    "request_count": 13,
+    "success_count": 13,
+    "error_count": 0,
+    "success_rate": 1.0,
+    "error_rate": 0.0,
+    "avg_latency_ms": 0.3998923074015273
+  },
+  "data_behavior": {
+    "fallback_rate": 0.3076923076923077,
+    "unknown_user_rate": 0.3076923076923077,
+    "requests_per_user": 3.25,
+    "request_volume_per_day": {
+      "2026-04-08": 13
+    }
+  },
+  "drift": {
+    "drift_score": 0.5949515237011115,
+    "top_item_shift": [
+      {
+        "item_id": 13,
+        "train_probability": 8.854069230252927e-05,
+        "production_probability": 0.1
+      },
+      {
+        "item_id": 12,
+        "train_probability": 0.0001328110384537939,
+        "production_probability": 0.1
+      },
+      {
+        "item_id": 527,
+        "train_probability": 0.0027933160345765683,
+        "production_probability": 0.1
+      },
+      {
+        "item_id": 912,
+        "train_probability": 0.0019336144738326551,
+        "production_probability": 0.1
+      },
+      {
+        "item_id": 593,
+        "train_probability": 0.003051797733072662,
+        "production_probability": 0.08333333333333333
+      },
+      {
+        "item_id": 318,
+        "train_probability": 0.0026019538931485215,
+        "production_probability": 0.06666666666666667
+      },
+      {
+        "item_id": 2396,
+        "train_probability": 0.0027147718720501313,
+        "production_probability": 0.06666666666666667
+      },
+      {
+        "item_id": 11,
+        "train_probability": 0.0010924778969586273,
+        "production_probability": 0.05
+      },
+      {
+        "item_id": 2858,
+        "train_probability": 0.004312788560542555,
+        "production_probability": 0.03333333333333333
+      },
+      {
+        "item_id": 1196,
+        "train_probability": 0.003690147563060252,
+        "production_probability": 0.03333333333333333
+      }
+    ]
+  },
+  "warnings": [
+    "Drift warning: recommendation distribution drift_score=0.5950 exceeds threshold."
+  ]
+}
