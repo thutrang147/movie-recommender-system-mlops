@@ -98,9 +98,9 @@ def get_project_root() -> Path:
 def load_movies_data() -> pd.DataFrame:
     """Load cleaned movies data."""
     project_root = get_project_root()
-    movies_path = project_root / "data" / "interim" / "movies_cleaned.csv"
+    movies_path = project_root / "data" / "processed" / "movies_preprocessed.parquet"
     if movies_path.exists():
-        return pd.read_csv(movies_path)
+        return pd.read_parquet(movies_path)
     return pd.DataFrame()
 
 
