@@ -8,12 +8,11 @@ import sys
 from pathlib import Path
 
 import pandas as pd  # type: ignore[import-not-found]
+from src.serving.predictor import RecommendationPredictor
 
 project_root = Path(__file__).resolve().parents[2]
 if str(project_root) not in sys.path:
     sys.path.append(str(project_root))
-
-from src.serving.predictor import RecommendationPredictor
 
 
 def main() -> None:

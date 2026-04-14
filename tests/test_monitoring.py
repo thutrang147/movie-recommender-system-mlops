@@ -5,9 +5,6 @@ from __future__ import annotations
 import json
 import pickle
 from pathlib import Path
-
-import pandas as pd
-
 from src.monitoring.logger import MonitoringLogger
 from src.monitoring.report import build_monitoring_summary, load_request_logs
 

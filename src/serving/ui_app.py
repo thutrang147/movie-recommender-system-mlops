@@ -1,23 +1,43 @@
-"""Streamlit UI for movie recommendations using BPR and Content-Based models."""
 
+
+"""MVP Streamlit UI: Personalized movie recommendations powered by BPR."""
 from __future__ import annotations
 
-import json
-import pickle
+
+# --- Standard imports ---
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
-
+import pickle
+from typing import Dict
 import pandas as pd  # type: ignore[import-not-found]
 import streamlit as st
 
-# Add project root to path for imports
+# --- Ensure project root is in sys.path after all imports ---
 project_root = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(project_root))
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
-from src.models.bpr import recommend_with_bundle as recommend_with_bpr
-from src.models.content_based import recommend_with_bundle as recommend_with_content
 
+
+def get_bpr_recommendations(
+    user_id: int,
+    top_k: int,
+    bpr_bundle: Dict,
+):
+    """Get recommendations from BPR model."""
+    try:
+        from src.models.bpr import recommend_with_bundle as recommend_with_bpr
+        recommendations = recommend_with_bpr(
+            bundle=bpr_bundle,
+            user_id=user_id,
+            top_k=top_k,
+        )
+        if not recommendations:
+            return []
+        return recommendations
+    except Exception as e:
+        st.error(f"BPR Model Error: {str(e)}")
+        return []
 
 @st.cache_resource
 def load_bpr_model(model_path: Path) -> Dict:
@@ -31,24 +51,43 @@ def load_bpr_model(model_path: Path) -> Dict:
     return bundle
 
 
+
+
+
 @st.cache_resource
-def load_content_based_model(model_path: Path) -> Dict:
-    """Load Content-Based model bundle from pickle file."""
-    if not model_path.exists():
-        st.error(f"Content-Based model not found at {model_path}")
-        return {}
+def load_user_history() -> pd.DataFrame:
+    """Load user rating history for displaying watched movies."""
+    project_root = get_project_root()
+    # Load from processed data
+    history_path = project_root / "data" / "processed" / "ratings_preprocessed.parquet"
+    if history_path.exists():
+        return pd.read_parquet(history_path)
+    # Fallback to split data
+    split_path = project_root / "data" / "split" / "train.parquet"
+    if split_path.exists():
+        return pd.read_parquet(split_path)
+    return pd.DataFrame()
+
+
+def get_user_watched_movies(user_id: int, ratings_df: pd.DataFrame, movies_df: pd.DataFrame, top_n: int = 10) -> pd.DataFrame:
+    """Get movies watched by a user, sorted by rating."""
+    if ratings_df.empty:
+        return pd.DataFrame()
     
-    with open(model_path, "rb") as file:
-        bundle = pickle.load(file)
-    return bundle
-
-
-@st.cache_resource
-def load_movie_metadata(metadata_path: Path) -> pd.DataFrame:
-    """Load movie metadata for display."""
-    if metadata_path.exists():
-        return pd.read_parquet(metadata_path)
-    return pd.DataFrame({"movie_id": []})
+    user_ratings = ratings_df[ratings_df["user_id"] == user_id].sort_values("rating", ascending=False).head(top_n)
+    if user_ratings.empty:
+        return pd.DataFrame()
+    
+    watched_movies = []
+    for _, row in user_ratings.iterrows():
+        movie_info = get_movie_info(int(row["movie_id"]), movies_df)
+        watched_movies.append({
+            "Movie ID": movie_info["movie_id"],
+            "Title": movie_info["title"],
+            "User Rating": f"{row['rating']:.1f}/5.0",
+        })
+    
+    return pd.DataFrame(watched_movies)
 
 
 def get_project_root() -> Path:
@@ -69,278 +108,139 @@ def get_movie_info(movie_id: int, movies_df: pd.DataFrame) -> Dict:
     """Get movie information by ID."""
     movie = movies_df[movies_df["movie_id"] == movie_id]
     if movie.empty:
-        return {"movie_id": movie_id, "title": "Unknown", "genre": "N/A"}
+        return {"movie_id": movie_id, "title": "Unknown", "genres": "N/A"}
     
     movie_row = movie.iloc[0]
     return {
         "movie_id": int(movie_row.get("movie_id", movie_id)),
         "title": str(movie_row.get("title", "Unknown")),
-        "genre": str(movie_row.get("genre", "N/A")),
-        "year": movie_row.get("year", "N/A"),
-        "imdb_id": movie_row.get("imdb_id", "N/A"),
+        "genres": str(movie_row.get("genres", "N/A")),
     }
 
 
 def format_recommendations(
-    recommendations: List[int],
-    scores: List[float] | None,
+    recommendations: list,
+    scores: list | None,
     movies_df: pd.DataFrame,
-    strategy: str,
 ) -> pd.DataFrame:
     """Format recommendations into a nice DataFrame for display."""
     rows = []
-    for rank, movie_id in enumerate(recommendations, 1):
+    for rank, rec in enumerate(recommendations, 1):
+        if isinstance(rec, dict):
+            movie_id = rec.get("movie_id", None)
+            score = rec.get("score", None)
+        else:
+            movie_id = rec[0] if isinstance(rec, (tuple, list)) else rec
+            score = scores[rank - 1] if scores and rank <= len(scores) else None
         movie_info = get_movie_info(movie_id, movies_df)
-        score = scores[rank - 1] if scores and rank <= len(scores) else None
-        
+        # Ensure score is always float and formatted to 2 decimals if possible
+        if score is not None:
+            try:
+                score_val = float(score)
+                score_str = f"{score_val:.2f}"
+            except Exception:
+                score_str = str(score)
+        else:
+            score_str = "N/A"
         rows.append({
-            "Rank": rank,
-            "Movie ID": movie_info["movie_id"],
+            "#": rank,
             "Title": movie_info["title"],
-            "Genre": movie_info["genre"],
-            "Year": movie_info["year"],
-            "Score": f"{score:.4f}" if score is not None else "N/A",
-            "Strategy": strategy,
+            "Score": score_str,
         })
-    
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+    df = df[["#", "Title", "Score"]]
+    return df
 
-
-def get_bpr_recommendations(
-    user_id: int,
-    top_k: int,
-    bpr_bundle: Dict,
-) -> Tuple[List[int], List[float], str]:
-    """Get recommendations from BPR model."""
-    try:
-        recommendations_with_scores = recommend_with_bpr(
-            bundle=bpr_bundle,
-            user_id=user_id,
-            top_k=top_k,
-        )
-        if not recommendations_with_scores:
-            return [], [], "BPR"
-        
-        recommendations = [movie_id for movie_id, _ in recommendations_with_scores]
-        scores = [score for _, score in recommendations_with_scores]
-        return recommendations, scores, "BPR"
-    except Exception as e:
-        st.error(f"BPR Model Error: {str(e)}")
-        return [], [], "BPR (Error)"
-
-
-def get_content_based_recommendations(
-    user_id: int,
-    top_k: int,
-    content_bundle: Dict,
-) -> Tuple[List[int], List[float], str]:
-    """Get recommendations from Content-Based model."""
-    try:
-        recommendations_with_scores = recommend_with_content(
-            bundle=content_bundle,
-            user_id=user_id,
-            top_k=top_k,
-        )
-        if not recommendations_with_scores:
-            return [], [], "Content-Based"
-        
-        recommendations = [movie_id for movie_id, _ in recommendations_with_scores]
-        scores = [score for _, score in recommendations_with_scores]
-        return recommendations, scores, "Content-Based"
-    except Exception as e:
-        st.error(f"Content-Based Model Error: {str(e)}")
-        return [], [], "Content-Based (Error)"
-
-
-def compare_models(
-    user_id: int,
-    top_k: int,
-    bpr_bundle: Dict,
-    content_bundle: Dict,
-    movies_df: pd.DataFrame,
-) -> None:
-    """Compare recommendations from both models side by side."""
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("🤖 BPR Model")
-        bpr_recs, bpr_scores, _ = get_bpr_recommendations(user_id, top_k, bpr_bundle)
-        if bpr_recs:
-            bpr_df = format_recommendations(bpr_recs, bpr_scores, movies_df, "BPR")
-            st.dataframe(bpr_df, use_container_width=True)
-        else:
-            st.warning("No recommendations from BPR model")
-    
-    with col2:
-        st.subheader("📚 Content-Based Model")
-        content_recs, content_scores, _ = get_content_based_recommendations(user_id, top_k, content_bundle)
-        if content_recs:
-            content_df = format_recommendations(content_recs, content_scores, movies_df, "Content-Based")
-            st.dataframe(content_df, use_container_width=True)
-        else:
-            st.warning("No recommendations from Content-Based model")
-
-
-def show_ensemble_recommendations(
-    user_id: int,
-    top_k: int,
-    bpr_bundle: Dict,
-    content_bundle: Dict,
-    movies_df: pd.DataFrame,
-    ensemble_weight_bpr: float = 0.5,
-) -> None:
-    """Show ensemble recommendations combining both models."""
-    st.subheader("🎯 Ensemble Recommendations")
-    
-    bpr_recs, bpr_scores, _ = get_bpr_recommendations(user_id, top_k * 2, bpr_bundle)
-    content_recs, content_scores, _ = get_content_based_recommendations(user_id, top_k * 2, content_bundle)
-    
-    if not bpr_recs and not content_recs:
-        st.warning("No recommendations available from either model")
-        return
-    
-    # Create scoring dictionary
-    ensemble_scores: Dict[int, float] = {}
-    
-    # Add BPR scores
-    for i, movie_id in enumerate(bpr_recs):
-        score = bpr_scores[i] if i < len(bpr_scores) else 0
-        ensemble_scores[movie_id] = ensemble_scores.get(movie_id, 0) + (score * ensemble_weight_bpr)
-    
-    # Add Content-Based scores
-    ensemble_weight_content = 1 - ensemble_weight_bpr
-    for i, movie_id in enumerate(content_recs):
-        score = content_scores[i] if i < len(content_scores) else 0
-        ensemble_scores[movie_id] = ensemble_scores.get(movie_id, 0) + (score * ensemble_weight_content)
-    
-    # Sort by ensemble score
-    sorted_movies = sorted(ensemble_scores.items(), key=lambda x: x[1], reverse=True)
-    ensemble_recommendations = [movie_id for movie_id, _ in sorted_movies[:top_k]]
-    ensemble_scores_list = [score for _, score in sorted_movies[:top_k]]
-    
-    ensemble_df = format_recommendations(ensemble_recommendations, ensemble_scores_list, movies_df, "Ensemble")
-    st.dataframe(ensemble_df, use_container_width=True)
-
-
-def show_model_info(bpr_bundle: Dict, content_bundle: Dict) -> None:
-    """Display model information and statistics."""
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("📊 BPR Model Info")
+def show_model_info(bpr_bundle: Dict) -> None:
+    """Display BPR model information and statistics."""
+    with st.sidebar.expander("📋 Model Information"):
+        st.markdown("### 🤖 BPR Model")
+        st.markdown("**Theory:** Bayesian Personalized Ranking optimizes for ranking by learning to predict relative preferences between items for each user.")
         if bpr_bundle:
             config = bpr_bundle.get("config", {})
             st.write(f"**Algorithm:** {bpr_bundle.get('algorithm', 'Unknown')}")
-            st.write(f"**Model Config:**")
-            for key, value in config.items():
-                st.write(f"  - {key}: {value}")
-    
-    with col2:
-        st.subheader("📊 Content-Based Model Info")
-        if content_bundle:
-            config = content_bundle.get("config", {})
-            st.write(f"**Algorithm:** {content_bundle.get('algorithm', 'Unknown')}")
-            st.write(f"**Model Config:**")
+            st.write(f"**Model Config:** {config}")
             for key, value in config.items():
                 st.write(f"  - {key}: {value}")
 
 
 def main():
     """Main Streamlit application."""
+
     st.set_page_config(
         page_title="Movie Recommender System",
         page_icon="🎬",
         layout="wide",
         initial_sidebar_state="expanded",
     )
-    
-    st.title("🎬 Movie Recommender System")
-    st.write("Compare recommendations from **BPR** and **Content-Based** models")
-    
-    # Load project paths
+
+    # ===== LOAD DATA =====
     project_root = get_project_root()
     bpr_model_path = project_root / "models" / "personalized" / "bpr_model.pkl"
-    content_model_path = project_root / "models" / "personalized" / "content_based_model.pkl"
-    
-    # Load models and data
-    with st.spinner("Loading models and data..."):
+    with st.spinner("Loading model and data..."):
         bpr_bundle = load_bpr_model(bpr_model_path)
-        content_bundle = load_content_based_model(content_model_path)
         movies_df = load_movies_data()
-    
-    if not bpr_bundle and not content_bundle:
-        st.error("❌ No models loaded. Please check model paths.")
+        ratings_df = load_user_history()
+    if not bpr_bundle:
+        st.error("❌ BPR model not loaded. Please check model path.")
         st.stop()
-    
-    # Sidebar controls
+
+    # ===== SIDEBAR =====
     st.sidebar.header("⚙️ Settings")
-    
-    user_id = st.sidebar.number_input(
-        "Enter User ID:",
-        min_value=1,
-        value=1,
-        step=1,
-    )
-    
-    top_k = st.sidebar.slider(
-        "Number of Recommendations:",
-        min_value=1,
-        max_value=20,
-        value=10,
-    )
-    
-    recommendation_mode = st.sidebar.radio(
-        "Recommendation Mode:",
-        ["Compare Models", "Ensemble", "BPR Only", "Content-Based Only"],
-    )
-    
-    if recommendation_mode == "Ensemble":
-        ensemble_weight_bpr = st.sidebar.slider(
-            "BPR Model Weight (Ensemble):",
-            min_value=0.0,
-            max_value=1.0,
-            value=0.5,
-            step=0.1,
+    user_id = st.sidebar.number_input("User ID", min_value=1, value=1, step=1)
+    top_k = st.sidebar.slider("Number of Recommendations", min_value=1, max_value=20, value=10)
+    show_history = st.sidebar.checkbox("Show watched history", value=False)
+    show_model_info = st.sidebar.checkbox("Show model information", value=False)
+
+    # ===== USER SNAPSHOT =====
+    user_history = get_user_watched_movies(user_id, ratings_df, movies_df, 100)
+    watched_count = len(user_history)
+    avg_rating = user_history["User Rating"].str.extract(r"([\d.]+)").astype(float).mean().values[0] if not user_history.empty else None
+    st.markdown("<h2 style='margin-bottom:0.2em;'>🎬 Movie Recommender System</h2>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:1.1em; color:gray; margin-bottom:0.5em;'>Personalized movie recommendations powered by BPR</div>", unsafe_allow_html=True)
+    st.markdown(
+        f"<div style='display:flex;gap:2em;margin-bottom:0.5em;'>"
+        f"<div><b>User:</b> {user_id}</div>"
+        f"<div><b>Watched:</b> {watched_count} movies</div>"
+        f"<div><b>Avg rating:</b> {avg_rating:.1f}/5.0</div>"
+        f"<div><b>Top N:</b> {top_k}</div>"
+        "</div>", unsafe_allow_html=True)
+    st.markdown("<div style='color:#888;font-size:0.98em;margin-bottom:0.5em;'>Recommendations exclude movies already watched by the user.</div>", unsafe_allow_html=True)
+    st.markdown("<div style='color:#888;font-size:0.98em;margin-bottom:1em;'>BPR is the main ranking model used for final recommendations.</div>", unsafe_allow_html=True)
+
+    # ===== FINAL RECOMMENDATIONS =====
+    st.markdown("<h4 style='margin-top:0.5em;margin-bottom:0.5em;'>Final Recommendations</h4>", unsafe_allow_html=True)
+    bpr_recs = get_bpr_recommendations(user_id, top_k, bpr_bundle)
+    if bpr_recs:
+        bpr_df = format_recommendations(bpr_recs, None, movies_df)
+        st.dataframe(
+            bpr_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "#": st.column_config.Column("Rank", width="small"),
+                "Title": st.column_config.Column("Title", width="large"),
+                "Score": st.column_config.Column("Score", width="small"),
+            },
         )
-    
-    # Footer info
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("📋 Model Info")
-    show_model_info(bpr_bundle, content_bundle)
-    
-    # Main content
-    st.markdown("---")
-    
-    if recommendation_mode == "Compare Models":
-        compare_models(user_id, top_k, bpr_bundle, content_bundle, movies_df)
-    
-    elif recommendation_mode == "Ensemble":
-        show_ensemble_recommendations(
-            user_id,
-            top_k,
-            bpr_bundle,
-            content_bundle,
-            movies_df,
-            ensemble_weight_bpr,
-        )
-    
-    elif recommendation_mode == "BPR Only":
-        st.subheader("🤖 BPR Model Recommendations")
-        bpr_recs, bpr_scores, _ = get_bpr_recommendations(user_id, top_k, bpr_bundle)
-        if bpr_recs:
-            bpr_df = format_recommendations(bpr_recs, bpr_scores, movies_df, "BPR")
-            st.dataframe(bpr_df, use_container_width=True)
-        else:
-            st.warning("No recommendations available")
-    
-    elif recommendation_mode == "Content-Based Only":
-        st.subheader("📚 Content-Based Model Recommendations")
-        content_recs, content_scores, _ = get_content_based_recommendations(user_id, top_k, content_bundle)
-        if content_recs:
-            content_df = format_recommendations(content_recs, content_scores, movies_df, "Content-Based")
-            st.dataframe(content_df, use_container_width=True)
-        else:
-            st.warning("No recommendations available")
+    else:
+        st.warning("No recommendations available for this user.")
+
+# Remove any leftover code that references recommend_with_content or recommend_with_svd
+
+    # ===== WATCHED HISTORY EXPANDER =====
+    if show_history:
+        with st.expander("Watched history", expanded=False):
+            if not user_history.empty:
+                st.dataframe(user_history[["Movie ID", "Title", "User Rating"]].head(20), use_container_width=True, hide_index=True)
+            else:
+                st.info("No movie watching history found for this user.")
+
+    # ===== MODEL INFO EXPANDER =====
+    if show_model_info:
+        with st.expander("Model information", expanded=False):
+            st.markdown("**BPR (Bayesian Personalized Ranking)** is the main production model powering these recommendations.")
+            st.markdown("Other models (SVD, Content-Based, Baseline) are used for offline evaluation and benchmarking only.")
 
 
 if __name__ == "__main__":

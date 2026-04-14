@@ -1,0 +1,43 @@
+{
+  "top_k": 10,
+  "relevance_threshold": 4.0,
+  "selected_strategy": "most_popular",
+  "selection_metric": "map_at_k",
+  "validation_metrics": {
+    "most_popular": {
+      "users_evaluated": 5815,
+      "recall_at_k": 0.05138532650046477,
+      "map_at_k": 0.026923313975442068,
+      "coverage": 0.03162518301610542,
+      "hit_rate_at_k": 0.2705073086844368
+    },
+    "weighted_popularity": {
+      "users_evaluated": 5815,
+      "recall_at_k": 0.049179971161176804,
+      "map_at_k": 0.025491360602710546,
+      "coverage": 0.03279648609077599,
+      "hit_rate_at_k": 0.24883920894239037
+    }
+  },
+  "test_metrics": {
+    "most_popular": {
+      "users_evaluated": 5968,
+      "recall_at_k": 0.04428707163268887,
+      "map_at_k": 0.037981763841098894,
+      "coverage": 0.03162518301610542,
+      "hit_rate_at_k": 0.375
+    },
+    "weighted_popularity": {
+      "users_evaluated": 5968,
+      "recall_at_k": 0.045797015299415766,
+      "map_at_k": 0.03769161075834356,
+      "coverage": 0.03279648609077599,
+      "hit_rate_at_k": 0.36813002680965146
+    }
+  },
+  "saved_artifacts": {
+    "most_popular": "/Users/thutrang/Desktop/Code/NEU/MLOps/movie-recommender-system-mlops/models/baseline/most_popular_items.parquet",
+    "weighted_popularity": "/Users/thutrang/Desktop/Code/NEU/MLOps/movie-recommender-system-mlops/models/baseline/weighted_popularity_items.parquet"
+  },
+  "notes": "Most Popular ranks by item frequency; Weighted Popularity ranks by mean rating multiplied by log1p(count). Selection uses validation MAP@K and final reporting includes both validation and test metrics."
+}

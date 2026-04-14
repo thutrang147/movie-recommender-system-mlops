@@ -439,10 +439,33 @@ def recommend_with_bundle(bundle: Dict[str, object], user_id: int, top_k: int) -
     if k == 0:
         return []
 
-    top_indices = np.argpartition(scores, -k)[-k:]
-    top_indices = top_indices[np.argsort(scores[top_indices])[::-1]]
+    from src.utils.scoring import robust_scale_to_rating
+    # Popularity fallback table (should be built and stored in bundle)
+    popularity_table = bundle.get("popularity_table")
+    results = []
 
-    return [(reverse_item_map[int(item_idx)], float(scores[int(item_idx)])) for item_idx in top_indices]
+    # Only consider candidate items (not seen)
+    candidate_indices = [i for i in range(len(scores)) if scores[i] != -np.inf]
+    candidate_scores = scores[candidate_indices]
+    candidate_item_ids = [reverse_item_map[int(i)] for i in candidate_indices]
+
+    # Normalize display score
+    display_scores = robust_scale_to_rating(candidate_scores)
+
+    # Rank by raw_score
+    top_idx = np.argsort(-candidate_scores)[:k]
+
+    for i in top_idx:
+        results.append(
+            {
+                "movie_id": int(candidate_item_ids[i]),
+                "raw_score": float(candidate_scores[i]),
+                "score": float(display_scores[i]),  # do not round here
+                "score_type": "normalized_ranking",
+                "is_fallback": False,
+            }
+        )
+    return results
 
 
 def evaluate_bundle_ranking(
@@ -487,7 +510,11 @@ def evaluate_bundle_ranking(
 
     for user_id in users:
         ranked = recommend_with_bundle(bundle=bundle, user_id=user_id, top_k=top_k)
-        recommendations = [movie_id for movie_id, _ in ranked]
+        # Hỗ trợ cả dict (kiểu mới) và tuple (kiểu cũ)
+        if ranked and isinstance(ranked[0], dict):
+            recommendations = [row["movie_id"] for row in ranked]
+        else:
+            recommendations = [movie_id for movie_id, _ in ranked]
         recommended_pool.update(recommendations)
 
         relevant_items = relevant_user_items[user_id]

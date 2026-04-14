@@ -205,6 +205,8 @@ class ContentBasedRecommender:
 
 def recommend_with_bundle(bundle: Dict[str, object], user_id: int, top_k: int) -> List[tuple[int, float]]:
     """Recommend from a serialized content-based bundle."""
+    from src.utils.scoring import robust_scale_to_rating
+    popularity_table = bundle.get("popularity_table")
     movie_ids: List[int] = [int(movie_id) for movie_id in bundle["movie_ids"]]
     movie_id_to_index: Dict[int, int] = bundle["movie_id_to_index"]  # type: ignore[assignment]
     movie_features = bundle["movie_features"]
@@ -215,9 +217,32 @@ def recommend_with_bundle(bundle: Dict[str, object], user_id: int, top_k: int) -
     if top_k <= 0:
         return []
 
+    # Fallback for cold-start user
     if user_id not in user_profiles:
-        fallback = [movie_id for movie_id in movie_popularity_order if movie_id not in train_user_seen_items.get(user_id, set())]
-        return [(movie_id, float(top_k - rank)) for rank, movie_id in enumerate(fallback[:top_k])]
+        if popularity_table is not None:
+            top = popularity_table.head(top_k).copy()
+            return [
+                {
+                    "movie_id": int(row["movie_id"]),
+                    "raw_score": float(row["popularity_score"]),
+                    "score": round(float(row["popularity_score"]), 1),
+                    "score_type": "popularity_rating",
+                    "is_fallback": True,
+                }
+                for _, row in top.iterrows()
+            ]
+        else:
+            fallback = [movie_id for movie_id in movie_popularity_order if movie_id not in train_user_seen_items.get(user_id, set())]
+            return [
+                {
+                    "movie_id": int(movie_id),
+                    "raw_score": float(top_k - rank),
+                    "score": float(3.0),
+                    "score_type": "popularity_rating",
+                    "is_fallback": True,
+                }
+                for rank, movie_id in enumerate(fallback[:top_k])
+            ]
 
     profile = user_profiles[user_id]
     scores = np.asarray(movie_features @ profile.reshape(-1, 1)).ravel()
@@ -231,6 +256,26 @@ def recommend_with_bundle(bundle: Dict[str, object], user_id: int, top_k: int) -
     if k == 0:
         return []
 
-    top_indices = np.argpartition(scores, -k)[-k:]
-    top_indices = top_indices[np.argsort(scores[top_indices])[::-1]]
-    return [(movie_ids[int(idx)], float(scores[int(idx)])) for idx in top_indices]
+    # Only consider candidate items (not seen)
+    candidate_indices = [i for i in range(len(scores)) if scores[i] != -np.inf]
+    candidate_scores = scores[candidate_indices]
+    candidate_item_ids = [movie_ids[int(i)] for i in candidate_indices]
+
+    # Normalize display score
+    display_scores = robust_scale_to_rating(candidate_scores)
+
+    # Rank by raw_score
+    top_idx = np.argsort(-candidate_scores)[:k]
+
+    results = []
+    for i in top_idx:
+        results.append(
+            {
+                "movie_id": int(candidate_item_ids[i]),
+                "raw_score": float(candidate_scores[i]),
+                "score": round(float(display_scores[i]), 1),
+                "score_type": "normalized_similarity",
+                "is_fallback": False,
+            }
+        )
+    return results

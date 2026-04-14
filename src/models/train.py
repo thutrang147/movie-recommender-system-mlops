@@ -240,6 +240,68 @@ def recommend_for_user(
     return recommendations.loc[:, ["rank", "movie_id", "score"]]
 
 
+def recommend_with_bundle(bundle: Dict[str, object], user_id: int, top_k: int) -> List[Tuple[int, float]]:
+    """Generate SVD recommendations directly from a serialized bundle."""
+    from src.utils.scoring import clip_rating
+    popularity_table = bundle.get("popularity_table")
+    algo: SVD = bundle["model"]  # type: ignore[assignment]
+    train_user_seen_items: Dict[int, set[int]] = bundle["train_user_seen_items"]  # type: ignore[assignment]
+    item_ids: List[int] = bundle["item_ids"]  # type: ignore[assignment]
+    item_popularity_order: List[int] = bundle["item_popularity_order"]  # type: ignore[assignment]
+
+    if top_k <= 0:
+        return []
+
+    seen_items = train_user_seen_items.get(user_id, set())
+    candidates = [mid for mid in item_ids if mid not in seen_items]
+
+    preds = []
+    for movie_id in candidates:
+        est = float(algo.predict(str(user_id), str(movie_id)).est)
+        preds.append((movie_id, est))
+
+    # If no predictions (user not in training data), fall back to popularity
+    if not preds:
+        if popularity_table is not None:
+            top = popularity_table.head(top_k).copy()
+            return [
+                {
+                    "movie_id": int(row["movie_id"]),
+                    "raw_score": float(row["popularity_score"]),
+                    "score": round(float(row["popularity_score"]), 1),
+                    "score_type": "popularity_rating",
+                    "is_fallback": True,
+                }
+                for _, row in top.iterrows()
+            ]
+        else:
+            fallback = item_popularity_order[:top_k]
+            return [
+                {
+                    "movie_id": int(movie_id),
+                    "raw_score": float(top_k - rank),
+                    "score": float(3.0),
+                    "score_type": "popularity_rating",
+                    "is_fallback": True,
+                }
+                for rank, movie_id in enumerate(fallback)
+            ]
+
+    preds.sort(key=lambda x: x[1], reverse=True)
+    preds = preds[:top_k]
+
+    return [
+        {
+            "movie_id": int(movie_id),
+            "raw_score": float(est),
+            "score": round(clip_rating(est), 1),
+            "score_type": "predicted_rating",
+            "is_fallback": False,
+        }
+        for movie_id, est in preds
+    ]
+
+
 def ranking_metrics(
     algo: SVD,
     eval_df: pd.DataFrame,
@@ -436,6 +498,8 @@ def run_training(
     save_summary(summary, model_path)
     save_report(summary, report_dir)
     return summary
+
+
 
 
 def main() -> Dict[str, object]:
