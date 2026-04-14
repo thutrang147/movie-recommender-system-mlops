@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
 
-import pandas as pd  # type: ignore[import-not-found]
+import pandas as pd  
 
 from src.models.bpr import recommend_with_bundle as recommend_with_bpr
 from src.models.content_based import recommend_with_bundle as recommend_with_content
@@ -126,13 +126,19 @@ class RecommendationPredictor:
 
         if self.algorithm == "bpr_mf_numpy":
             rows = recommend_with_bpr(self.bundle, user_id=user_id, top_k=top_k)
-            return [int(movie_id) for movie_id, _ in rows]
+            if rows and isinstance(rows[0], dict):
+                return [int(row["movie_id"]) for row in rows]
+            else:
+                return [int(movie_id) for movie_id, _ in rows]
         if self.algorithm == "content_based_tfidf":
             rows = recommend_with_content(self.bundle, user_id=user_id, top_k=top_k)
-            return [int(movie_id) for movie_id, _ in rows]
+            if rows and isinstance(rows[0], dict):
+                return [int(row["movie_id"]) for row in rows]
+            else:
+                return [int(movie_id) for movie_id, _ in rows]
 
         rec_df = recommend_generic(bundle=self.bundle, user_id=user_id, top_k=top_k)
-        return rec_df["movie_id"].astype(int).tolist() if "movie_id" in rec_df.columns else []
+        return [int(movie_id) for movie_id in rec_df]
 
     def recommend(self, user_id: int, top_k: int | None = None) -> Dict[str, object]:
         if self.bundle is None:

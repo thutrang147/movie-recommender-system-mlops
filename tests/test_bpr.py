@@ -72,7 +72,8 @@ def test_bpr_bundle_recommend_and_evaluate() -> None:
 
     rec_rows = recommend_with_bundle(bundle=bundle, user_id=2, top_k=3)
     assert rec_rows
-    assert all(len(row) == 2 for row in rec_rows)
+    # Kiểm tra mỗi phần tử là dict có key 'movie_id' và 'score'
+    assert all(isinstance(row, dict) and 'movie_id' in row and 'score' in row for row in rec_rows)
 
     metrics = evaluate_bundle_ranking(bundle=bundle, test_df=val_df, top_k=3, relevance_threshold=4.0)
     assert set(metrics.keys()) == {"users_evaluated", "recall_at_k", "map_at_k", "hit_rate_at_k", "coverage"}

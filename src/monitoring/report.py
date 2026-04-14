@@ -1,13 +1,13 @@
 """Monitoring report generation and rule-based alerting."""
-
 from __future__ import annotations
 
-import argparse
-import json
+
+# --- Ensure project root is in sys.path for direct script execution ---
 import sys
 from pathlib import Path
+import argparse
+import json
 from typing import Dict, List
-
 import pandas as pd  # type: ignore[import-not-found]
 import yaml
 from src.monitoring.drift import (
@@ -20,7 +20,7 @@ from src.monitoring.drift import (
 
 project_root = Path(__file__).resolve().parents[2]
 if str(project_root) not in sys.path:
-    sys.path.append(str(project_root))
+    sys.path.insert(0, str(project_root))
 
 
 def load_yaml(path: Path) -> Dict[str, object]:

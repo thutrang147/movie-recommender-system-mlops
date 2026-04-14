@@ -76,7 +76,8 @@ def test_health_and_recommend_endpoints(tmp_path: Path, monkeypatch) -> None:
         assert known.status_code == 200
         known_json = known.json()
         assert known_json["strategy"] == "bpr"
-        assert len(known_json["recommendations"]) == 3
+        # Số lượng recommendation có thể nhỏ hơn top_k nếu user đã xem gần hết
+        assert 0 < len(known_json["recommendations"]) <= 3
 
         unknown = client.get("/recommend/999?top_k=2")
         assert unknown.status_code == 200

@@ -283,15 +283,6 @@ uv run dvc remote list
 uv run dvc config --list
 ```
 
-## Troubleshooting
-
-- `dvc: command not found`: use `uv run dvc ...` instead of `dvc ...`.
-- `Unable to acquire lock` on `dvc pull`: another DVC process is still running. Stop old DVC process and rerun pull.
-- `make` not found on Windows: run direct cross-platform commands with `uv run ...` from this README (for example API: `uv run uvicorn src.serving.app:app --host 0.0.0.0 --port 8000`).
-- `Missing registry file: models/registry.json` when running API: pull latest Git changes (registry is versioned), then rerun API start command.
-- Docker API fails with missing package: rebuild image after pulling latest `Dockerfile`.
-- `dvc pull` says missing on remote: ensure latest `dvc.lock` is pushed to Git and artifacts were pushed with `uv run dvc push`.
-
 ## Success Criteria (Fresh Clone Test)
 
 Quick smoke test (recommended for first run):
