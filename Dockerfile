@@ -21,4 +21,4 @@ RUN poetry install --no-interaction --no-ansi --only main
 
 EXPOSE 8000
 
-CMD ["uvicorn", "src.serving.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["poetry", "run", "uvicorn", "src.serving.app:app", "--host", "0.0.0.0", "--port", "8000"]
