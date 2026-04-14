@@ -37,3 +37,8 @@ dev = [
 [tool.ruff]
 line-length = 100
 exclude = [".venv", "mlruns", "data", "models", "notebooks", "reports"]
+
+[tool.poetry]
+packages = [
+    { include = "src" }
+]
