@@ -9,12 +9,15 @@ ENV PYTHONUNBUFFERED=1
 # Install build tools for scikit-surprise
 RUN apt-get update && apt-get install -y build-essential
 
-# Install poetry and dependencies from pyproject.toml
-RUN pip install poetry
-COPY pyproject.toml poetry.lock* ./
-RUN poetry install --no-interaction --no-ansi --only main
 
+# Install poetry
+RUN pip install poetry
+
+# Copy all code and config
 COPY . /app
+
+# Install dependencies from pyproject.toml
+RUN poetry install --no-interaction --no-ansi --only main
 
 EXPOSE 8000
 
