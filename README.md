@@ -1,13 +1,72 @@
 # Movie Recommender System (MLOps)
 
-An MLOps-oriented MovieLens recommender system with data versioning, model training, API serving, monitoring, and retraining workflows.
+> **TL;DR / Quick Start**
+
+```bash
+git clone <repo>
+cd <repo>
+uv sync
+uv run dvc pull
+uv run uvicorn src.serving.app:app --host 0.0.0.0 --port 8000
+curl http://127.0.0.1:8000/health
+```
+
+---
+
+
+## Project Structure
+
+```text
+├── configs/           # YAML config files (API, data, model, mlflow, etc.)
+├── data/
+│   ├── raw/           # Raw input data
+│   ├── interim/       # Cleaned/intermediate data
+│   ├── processed/     # Final processed data
+│   └── split/         # Train/val/test splits
+├── docs/              # Problem statement, reports, diagrams
+├── k8s/               # Kubernetes manifests (local demo)
+├── models/
+│   ├── baseline/      # Baseline model artifacts
+│   ├── personalized/  # Personalized model artifacts (BPR, SVD, etc.)
+│   └── registry.json  # Model registry (used by API)
+├── notebooks/         # Jupyter notebooks (EDA, experiments)
+├── reports/
+│   ├── evaluation/    # Evaluation outputs
+│   ├── monitoring/    # Monitoring outputs
+│   ├── retraining/    # Retraining outputs
+│   └── ...            # Other report subfolders
+├── scripts/           # Utility scripts (data prep, monitoring logs, etc.)
+├── src/
+│   ├── data/          # Data ingestion, validation, preprocessing
+│   ├── models/        # Model training, benchmarking
+│   ├── monitoring/    # Monitoring/reporting code
+│   ├── pipeline/      # Retraining pipeline
+│   ├── serving/       # FastAPI app, Streamlit UI
+└── tests/             # Unit tests
+```
+
+---
+
+## System Architecture
+
+![System Architecture](docs/system_architecture.png)
+
+## Deployment Architecture
+
+![Deployment Architecture](docs/deployment_architecture.png)
+
+---
 
 ## What This Repo Does
 
 - Builds a recommendation pipeline from MovieLens raw data.
 - Trains and evaluates Baseline, SVD, BPR, and Content-based models.
+- Current selected model: BPR.
 - Serves recommendations with FastAPI.
 - Supports monitoring, drift checks, retraining, promotion, and rollback.
+- Includes optional Streamlit UI for demo.
+
+---
 
 ## Prerequisites
 
@@ -16,12 +75,18 @@ An MLOps-oriented MovieLens recommender system with data versioning, model train
 - `uv` installed
 - Git
 - Optional: Docker Desktop
+- Optional: `make` (for convenience on macOS/Linux)
 
-Optional tool:
+---
 
-- `make` (optional convenience for macOS/Linux)
+**Note:**  
+- This project includes MLflow-based experiment tracking support. MLflow can be used for experiment tracking and registry exploration, but the API serving logic uses `models/registry.json` as the active model registry.
+- CI/CD is set up for build/test/image publish, and retraining automation is available, but retraining and deployment are not yet fully chained into a closed automatic production loop.
+- Kubernetes manifests are minimal and intended for local demo / coursework deployment.
 
-## 1) Clone And Setup
+---
+
+## 1) Clone And Setup (Important)
 
 ```bash
 git clone <your-repo-url>
@@ -53,7 +118,7 @@ Notes:
 - `--local` stores credentials in `.dvc/config.local` (git-ignored).
 - Do not commit or share client secrets in chat/commit history.
 
-## 3) Choose One Run Path
+## 3) Choose One Run Path (Choose the right path to avoid errors)
 
 ### Path A (Recommended): Run fast with DVC artifacts
 
@@ -62,7 +127,7 @@ Use this path if you want the project running quickly with shared tracked output
 ```bash
 uv run dvc pull
 uv run pytest -q
-uv run python src/models/final_benchmark.py
+uv run python -m src.models.final_benchmark
 ```
 
 If `uv run dvc pull` fails with missing remote objects (`missing-files`), switch to Path B and rebuild locally.
@@ -72,7 +137,7 @@ Expected outputs:
 - `models/personalized/*.pkl`
 - `reports/evaluation/final_comparison.md`
 
-### Path B: Full local rebuild from raw data
+### Path B: Full local rebuild from raw data (slower, only use if DVC pull fails)
 
 Use this path if you want to rebuild everything end-to-end yourself.
 
@@ -86,7 +151,7 @@ uv run python src/models/train.py
 uv run python src/models/train_bpr.py
 uv run python src/models/train_content_based.py
 uv run python src/models/evaluate.py
-uv run python src/models/final_benchmark.py
+uv run python -m src.models.final_benchmark
 uv run pytest -q
 ```
 
@@ -99,7 +164,7 @@ Expected outputs:
 - `models/personalized/content_based_model.pkl`
 - `reports/evaluation/final_comparison.md`
 
-## 4) Run API Locally
+## 4) Run API Locally (Serve recommendation API)
 
 Before starting API, make sure model artifacts exist.
 
@@ -108,13 +173,14 @@ Before starting API, make sure model artifacts exist.
 - Path A: `uv run dvc pull`
 - Path B: finish full local rebuild steps in Section 3
 
-2) Start API:
+2) Start API (run from project root, make sure model artifacts exist):
 
 ```bash
 uv run uvicorn src.serving.app:app --host 0.0.0.0 --port 8000
 ```
 
-Note: if you are on macOS/Linux and prefer Makefile shortcuts, you can also run `make api-run`.
+
+**Note:** If you get errors about missing model/data, make sure you have completed DVC pull or rebuilt data/model as instructed above.
 
 Open interactive API docs in browser:
 
@@ -140,15 +206,15 @@ Expected:
 Generate monitoring report:
 
 ```bash
-uv run python src/monitoring/report.py
+uv run python -m src.monitoring.report
 ```
 
 Run retraining flows:
 
 ```bash
-uv run python src/pipeline/retrain_pipeline.py --strategy schedule
-uv run python src/pipeline/retrain_pipeline.py --strategy trigger
-uv run python src/pipeline/retrain_pipeline.py --rollback
+uv run python -m src.pipeline.retrain_pipeline --strategy schedule
+uv run python -m src.pipeline.retrain_pipeline --strategy trigger
+uv run python -m src.pipeline.retrain_pipeline --rollback
 ```
 
 Note: macOS/Linux Makefile shortcuts are available: `make monitoring-report`, `make retrain-weekly`, `make retrain-trigger`, `make retrain-rollback`.
@@ -174,7 +240,7 @@ curl "http://127.0.0.1:8000/recommend/1?top_k=10"
 
 Note: first Docker build can be slow due to dependency download.
 
-## 7) Kubernetes Deployment (Minimal)
+## 7) Kubernetes Deployment
 
 This project includes minimal Kubernetes manifests for deploying the recommender API service.
 
@@ -216,13 +282,29 @@ kubectl get pods
 kubectl get svc
 ```
 
-Access API locally via port-forward:
+
+### Expose API for demo (port-forward or NodePort)
+
+**Option 1: Port-forward (simple, safe):**
 
 ```bash
 kubectl port-forward svc/recommender-service 8000:80
 ```
 
-In another terminal, test endpoints:
+
+**Option 2: Change to NodePort (if you need to access from outside the cluster):**
+Edit service.yaml:
+```yaml
+type: NodePort
+```
+Then get the nodePort and access via the node's IP.
+
+### Demo: Scale deployment (K8s best practice)
+```bash
+kubectl scale deployment recommender-api --replicas=4
+kubectl get pods
+```
+You will see multiple recommender-api pods running in parallel.
 
 ```bash
 curl http://127.0.0.1:8000/health
@@ -235,15 +317,16 @@ Cleanup:
 kubectl delete -f k8s/
 ```
 
-## 8) Streamlit UI (Model Comparison)
 
-You can run a lightweight UI to compare BPR and Content-based recommendations.
+## 8) Streamlit UI (BPR Recommendations)
+
+You can run a lightweight UI to get personalized movie recommendations for a user using the BPR model.
 
 Prerequisites:
 
-- Model bundles exist at `models/personalized/bpr_model.pkl` and `models/personalized/content_based_model.pkl`
+- Model bundle exists at `models/personalized/bpr_model.pkl`
 
-Run UI:
+Run UI (make sure the BPR model bundle exists):
 
 ```bash
 uv run streamlit run src/serving/ui_app.py
@@ -282,22 +365,41 @@ Check remote/config:
 uv run dvc remote list
 uv run dvc config --list
 ```
+## 10) MLflow Tracking & Model Registry
 
-## Success Criteria (Fresh Clone Test)
+This project uses [MLflow](https://mlflow.org/) for experiment tracking and model registry.
 
-Quick smoke test (recommended for first run):
+### Start MLflow UI
 
-1. `uv sync`
-2. DVC access configured (if using Path A)
-3. `uv run dvc pull` (or use Path B if remote is incomplete)
-4. `uv run pytest -q`
-5. `uv run uvicorn src.serving.app:app --host 0.0.0.0 --port 8000` + successful `/health` and `/recommend`
+From the project root (where the `mlruns` folder is located), run:
 
-Full workflow validation:
+```bash
+mlflow ui
+```
 
-1. `uv sync`
-2. `uv run dvc pull`
-3. `uv run pytest -q`
-4. `uv run uvicorn src.serving.app:app --host 0.0.0.0 --port 8000` + successful `/health` and `/recommend`
-5. `uv run python src/monitoring/report.py`
-6. `uv run python src/pipeline/retrain_pipeline.py --strategy trigger`
+By default, the UI will be available at [http://localhost:5000](http://localhost:5000).
+
+### View Experiments & Runs
+
+- Select the experiment (e.g., `movie-recommender-bpr`) in the left sidebar.
+- You can compare runs, view parameters, metrics, and artifacts for each training run.
+
+### Model Registry
+
+- Click the "Models" tab in the MLflow UI to see all registered models (e.g., `BPR_Recommender`).
+- You can view model versions, download artifacts, and manage model stages (Staging, Production, Archived).
+
+### Notes
+
+- The tracking URI and experiment name are configured in `configs/mlflow.yaml`.
+- Make sure to run `mlflow ui` from the same directory as your `mlruns` folder to see all runs.
+- If you use a remote MLflow server, update the `tracking_uri` accordingly.
+
+
+---
+## ⚠️ Common Issues & Troubleshooting
+
+- **Missing model/data error:** Run DVC pull or rebuild data/model as instructed above.
+- **Permission error with Docker/K8s:** Try running as admin/sudo or check that Docker Desktop is running.
+- **Cannot access API:** Check port-forward or NodePort, make sure manifests are applied and pods are running.
+- **API/UI errors:** Ensure correct Python version and all dependencies installed with `uv sync`.
