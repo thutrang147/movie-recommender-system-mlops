@@ -1,51 +1,29 @@
 import numpy as np
-import pandas as pd
 
-EPS = 1e-12
-
-def clip_rating(score: float, min_rating: float = 1.0, max_rating: float = 5.0) -> float:
-    return float(np.clip(score, min_rating, max_rating))
-
-def robust_scale_to_rating(
-    raw_scores,
-    min_rating: float = 1.0,
-    max_rating: float = 5.0,
-    lower_q: float = 5.0,
-    upper_q: float = 95.0,
-):
+def robust_scale_to_rating(scores: np.ndarray, min_rating: float = 1.0, max_rating: float = 5.0) -> np.ndarray:
     """
-    Scale raw scores -> [min_rating, max_rating] bằng quantile clipping.
-    Dùng cho BPR / Content-Based để hiển thị ra UI.
+    Scale an array of scores to the target rating range [min_rating, max_rating] using robust min-max scaling.
+    If all scores are equal, returns the midpoint of the rating range.
     """
-    raw_scores = np.asarray(raw_scores, dtype=float)
+    scores = np.asarray(scores, dtype=np.float32)
+    if len(scores) == 0:
+        return np.array([])
+    min_score = np.min(scores)
+    max_score = np.max(scores)
+    if np.isclose(max_score, min_score):
+        return np.full_like(scores, (min_rating + max_rating) / 2, dtype=np.float32)
+    scaled = (scores - min_score) / (max_score - min_score)
+    return scaled * (max_rating - min_rating) + min_rating
 
-    if raw_scores.size == 0:
-        return raw_scores
-
-    lo = np.percentile(raw_scores, lower_q)
-    hi = np.percentile(raw_scores, upper_q)
-
-    if hi - lo < EPS:
-        mid = (min_rating + max_rating) / 2.0
-        return np.full_like(raw_scores, mid, dtype=float)
-
-    clipped = np.clip(raw_scores, lo, hi)
-    scaled_01 = (clipped - lo) / (hi - lo)
-    scaled = min_rating + scaled_01 * (max_rating - min_rating)
-    return scaled
-
-def bayesian_average_score(
-    item_mean: float,
-    item_count: int,
-    global_mean: float,
-    m: int = 50,
-) -> float:
+def bayesian_average_score(item_mean: float, item_count: int, global_mean: float, m: int = 50) -> float:
     """
-    Bayesian average cho popularity/baseline/fallback.
-    Trả ra score nằm tự nhiên trong thang rating gốc, ví dụ [1, 5].
+    Bayesian average for popularity/baseline/fallback.
+    Returns a score in the original rating scale, e.g. [1, 5].
     """
     item_count = max(int(item_count), 0)
     return ((item_count / (item_count + m)) * item_mean) + ((m / (item_count + m)) * global_mean)
+
+import pandas as pd
 
 def build_popularity_table(
     ratings_df: pd.DataFrame,
@@ -55,8 +33,8 @@ def build_popularity_table(
     m: int = 50,
 ) -> pd.DataFrame:
     """
-    Xây bảng popular items dùng chung cho baseline + fallback cold-start.
-    Output gồm:
+    Build a popularity table for baseline and cold-start fallback.
+    Output columns:
     - movie_id
     - mean_rating
     - rating_count

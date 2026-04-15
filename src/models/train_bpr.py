@@ -11,9 +11,22 @@ from typing import Dict
 
 import pandas as pd  # type: ignore[import-not-found]
 
+# MLflow integration
+import mlflow
+import mlflow.sklearn
+import yaml
+
 project_root = Path(__file__).resolve().parents[2]
 if str(project_root) not in sys.path:
     sys.path.append(str(project_root))
+def load_yaml(path: Path) -> Dict:
+    if not path.exists():
+        raise FileNotFoundError(f"Missing config file: {path}")
+    with open(path, "r", encoding="utf-8") as file:
+        data = yaml.safe_load(file)
+    if not isinstance(data, dict):
+        raise ValueError(f"Config must be a dictionary: {path}")
+    return data
 
 from src.models.bpr import BPRConfig, BPRModel
 
@@ -106,25 +119,66 @@ def run_training(
     train_df = load_split(train_path)
     val_df = load_split(val_path)
 
-    model = BPRModel(config=config).fit(train_df=train_df, val_df=val_df)
-    validation_metrics = model.ranking_metrics(val_df, top_k=config.top_k)
+    # Load mlflow config
+    mlflow_cfg_path = project_root / "configs" / "mlflow.yaml"
+    mlflow_cfg = load_yaml(mlflow_cfg_path)
+    tracking_uri = str(mlflow_cfg.get("tracking_uri", "file:./mlruns"))
+    experiment_name = str(mlflow_cfg.get("experiment_name", "movie-recommender-bpr"))
+    run_name_prefix = str(mlflow_cfg.get("run_name_prefix", "bpr"))
 
-    bundle = model.to_bundle()
-    save_bundle(bundle=bundle, model_path=model_path)
+    mlflow.set_tracking_uri(tracking_uri)
+    mlflow.set_experiment(experiment_name)
 
-    summary: Dict[str, object] = {
-        "algorithm": "bpr_mf_numpy",
-        "config": bundle["config"],
-        "validation_metrics": validation_metrics,
-        "best_epoch": bundle["best_epoch"],
-        "best_val_map": bundle["best_val_map"],
-        "artifact_path": str(model_path),
-        "notes": "BPR is trained with sampled pairwise triplets and early stopping on validation MAP@K.",
-    }
+    run_name = f"{run_name_prefix}-train-{config.factors}f-{config.learning_rate}lr"
+    with mlflow.start_run(run_name=run_name):
+        # Log hyperparameters
+        mlflow.log_params({
+            "factors": config.factors,
+            "learning_rate": config.learning_rate,
+            "reg": config.reg,
+            "epochs": config.epochs,
+            "n_samples_per_epoch": config.n_samples_per_epoch,
+            "top_k": config.top_k,
+            "relevance_threshold": config.relevance_threshold,
+            "patience": config.patience,
+            "random_state": config.random_state,
+        })
 
-    save_summary(summary=summary, model_path=model_path)
-    save_report(summary=summary, report_dir=report_dir)
-    return summary
+        model = BPRModel(config=config).fit(train_df=train_df, val_df=val_df)
+        validation_metrics = model.ranking_metrics(val_df, top_k=config.top_k)
+
+        # Log metrics
+        mlflow.log_metrics({
+            "users_evaluated": validation_metrics['users_evaluated'],
+            "recall_at_k": validation_metrics['recall_at_k'],
+            "map_at_k": validation_metrics['map_at_k'],
+            "hit_rate_at_k": validation_metrics['hit_rate_at_k'],
+            "coverage": validation_metrics['coverage']
+        })
+
+        bundle = model.to_bundle()
+        save_bundle(bundle=bundle, model_path=model_path)
+
+        # Log model artifact & register
+        mlflow.sklearn.log_model(
+            sk_model=model,
+            artifact_path="bpr_model",
+            registered_model_name="BPR_Recommender"
+        )
+
+        summary: Dict[str, object] = {
+            "algorithm": "bpr_mf_numpy",
+            "config": bundle["config"],
+            "validation_metrics": validation_metrics,
+            "best_epoch": bundle["best_epoch"],
+            "best_val_map": bundle["best_val_map"],
+            "artifact_path": str(model_path),
+            "notes": "BPR is trained with sampled pairwise triplets and early stopping on validation MAP@K.",
+        }
+
+        save_summary(summary=summary, model_path=model_path)
+        save_report(summary=summary, report_dir=report_dir)
+        return summary
 
 
 def main() -> Dict[str, object]:
