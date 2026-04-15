@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 def robust_scale_to_rating(scores: np.ndarray, min_rating: float = 1.0, max_rating: float = 5.0) -> np.ndarray:
     """
@@ -22,8 +23,6 @@ def bayesian_average_score(item_mean: float, item_count: int, global_mean: float
     """
     item_count = max(int(item_count), 0)
     return ((item_count / (item_count + m)) * item_mean) + ((m / (item_count + m)) * global_mean)
-
-import pandas as pd
 
 def build_popularity_table(
     ratings_df: pd.DataFrame,
