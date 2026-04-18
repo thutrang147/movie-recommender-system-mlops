@@ -1,4 +1,4 @@
-"""Unit tests for Week 13 monitoring components."""
+"""Unit tests for monitoring components."""
 
 from __future__ import annotations
 
